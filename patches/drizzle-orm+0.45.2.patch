@@ -1,0 +1,3147 @@
+diff --git a/node_modules/drizzle-orm/neon/neon-auth.cjs b/node_modules/drizzle-orm/neon/neon-auth.cjs
+index fa575e4..344bee7 100644
+--- a/node_modules/drizzle-orm/neon/neon-auth.cjs
++++ b/node_modules/drizzle-orm/neon/neon-auth.cjs
+@@ -18,10 +18,20 @@ var __copyProps = (to, from, except, desc) => {
+ var __toCommonJS = (mod) => __copyProps(__defProp({}, "__esModule", { value: true }), mod);
+ var neon_auth_exports = {};
+ __export(neon_auth_exports, {
+-  usersSync: () => usersSync
++  account: () => account,
++  invitation: () => invitation,
++  jwks: () => jwks,
++  member: () => member,
++  organization: () => organization,
++  projectConfig: () => projectConfig,
++  session: () => session,
++  users: () => users,
++  usersSync: () => usersSync,
++  verification: () => verification
+ });
+ module.exports = __toCommonJS(neon_auth_exports);
+ var import_pg_core = require("../pg-core/index.cjs");
++var import_sql = require("../sql");
+ const neonAuthSchema = (0, import_pg_core.pgSchema)("neon_auth");
+ const usersSync = neonAuthSchema.table("users_sync", {
+   rawJson: (0, import_pg_core.jsonb)("raw_json").notNull(),
+@@ -32,8 +42,117 @@ const usersSync = neonAuthSchema.table("users_sync", {
+   deletedAt: (0, import_pg_core.timestamp)("deleted_at", { withTimezone: true, mode: "string" }),
+   updatedAt: (0, import_pg_core.timestamp)("updated_at", { withTimezone: true, mode: "string" })
+ });
++const users = neonAuthSchema.table("user", {
++  id: (0, import_pg_core.uuid)().primaryKey().default(import_sql.sql`gen_random_uuid()`),
++  name: (0, import_pg_core.text)().notNull(),
++  email: (0, import_pg_core.text)().unique().notNull(),
++  emailVerified: (0, import_pg_core.boolean)("emailVerified").notNull(),
++  image: (0, import_pg_core.text)(),
++  createdAt: (0, import_pg_core.timestamp)("createdAt", { withTimezone: true, mode: "string" }).notNull().defaultNow(),
++  updatedAt: (0, import_pg_core.timestamp)("updatedAt", { withTimezone: true, mode: "string" }).notNull().defaultNow(),
++  role: (0, import_pg_core.text)(),
++  banned: (0, import_pg_core.boolean)(),
++  banReason: (0, import_pg_core.text)(),
++  banExpires: (0, import_pg_core.timestamp)("banExpires", { withTimezone: true, mode: "string" })
++});
++const verification = neonAuthSchema.table("verification", {
++  id: (0, import_pg_core.uuid)().primaryKey().default(import_sql.sql`gen_random_uuid()`),
++  identifier: (0, import_pg_core.text)().notNull(),
++  value: (0, import_pg_core.text)().notNull(),
++  expiresAt: (0, import_pg_core.timestamp)("expiresAt", { withTimezone: true, mode: "string" }).notNull(),
++  createdAt: (0, import_pg_core.timestamp)("createdAt", { withTimezone: true, mode: "string" }).notNull().defaultNow(),
++  updatedAt: (0, import_pg_core.timestamp)("updatedAt", { withTimezone: true, mode: "string" }).notNull().defaultNow()
++}, (table) => [(0, import_pg_core.index)("verification_identifier_idx").on(table.identifier)]);
++const session = neonAuthSchema.table("session", {
++  id: (0, import_pg_core.uuid)().primaryKey().default(import_sql.sql`gen_random_uuid()`),
++  expiresAt: (0, import_pg_core.timestamp)("expiresAt", { withTimezone: true, mode: "string" }).notNull(),
++  token: (0, import_pg_core.text)().notNull().unique(),
++  createdAt: (0, import_pg_core.timestamp)("createdAt", { withTimezone: true, mode: "string" }).notNull().defaultNow(),
++  updatedAt: (0, import_pg_core.timestamp)("updatedAt", { withTimezone: true, mode: "string" }).notNull(),
++  ipAddress: (0, import_pg_core.text)(),
++  userAgent: (0, import_pg_core.text)(),
++  userId: (0, import_pg_core.uuid)().notNull().references(() => users.id, { onDelete: "cascade" }),
++  impersonatedBy: (0, import_pg_core.text)(),
++  activeOrganizationId: (0, import_pg_core.text)()
++}, (table) => [(0, import_pg_core.index)("session_userId_idx").on(table.userId)]);
++const projectConfig = neonAuthSchema.table("project_config", {
++  id: (0, import_pg_core.uuid)().primaryKey().default(import_sql.sql`gen_random_uuid()`),
++  name: (0, import_pg_core.text)().notNull(),
++  endpointId: (0, import_pg_core.text)("endpoint_id").notNull().unique(),
++  createdAt: (0, import_pg_core.timestamp)("created_at", { withTimezone: true, mode: "string" }).notNull().defaultNow(),
++  updatedAt: (0, import_pg_core.timestamp)("updated_at", { withTimezone: true, mode: "string" }).notNull().defaultNow(),
++  trustedOrigins: (0, import_pg_core.jsonb)("trusted_origins").notNull(),
++  socialProviders: (0, import_pg_core.jsonb)("social_providers").notNull(),
++  emailProvider: (0, import_pg_core.jsonb)("email_provider"),
++  emailAndPassword: (0, import_pg_core.jsonb)("email_and_password"),
++  allowLocalhost: (0, import_pg_core.boolean)("allow_localhost").notNull(),
++  pluginConfigs: (0, import_pg_core.jsonb)("plugin_configs"),
++  webhookConfig: (0, import_pg_core.jsonb)("webhook_config")
++});
++const organization = neonAuthSchema.table("organization", {
++  id: (0, import_pg_core.uuid)().primaryKey().default(import_sql.sql`gen_random_uuid()`),
++  name: (0, import_pg_core.text)().notNull(),
++  slug: (0, import_pg_core.text)().notNull().unique(),
++  logo: (0, import_pg_core.text)(),
++  createdAt: (0, import_pg_core.timestamp)("createdAt", { withTimezone: true, mode: "string" }).notNull(),
++  metadata: (0, import_pg_core.text)()
++});
++const member = neonAuthSchema.table("member", {
++  id: (0, import_pg_core.uuid)().primaryKey().default(import_sql.sql`gen_random_uuid()`),
++  organizationId: (0, import_pg_core.uuid)().notNull().references(() => organization.id, { onDelete: "cascade" }),
++  userId: (0, import_pg_core.uuid)().notNull().references(() => users.id, { onDelete: "cascade" }),
++  role: (0, import_pg_core.text)().notNull(),
++  createdAt: (0, import_pg_core.timestamp)("createdAt", { withTimezone: true, mode: "string" }).notNull()
++}, (table) => [
++  (0, import_pg_core.index)("member_organizationId_idx").on(table.organizationId),
++  (0, import_pg_core.index)("member_userId_idx").on(table.userId)
++]);
++const jwks = neonAuthSchema.table("jwks", {
++  id: (0, import_pg_core.uuid)().primaryKey().default(import_sql.sql`gen_random_uuid()`),
++  publicKey: (0, import_pg_core.text)().notNull(),
++  privateKey: (0, import_pg_core.text)().notNull(),
++  createdAt: (0, import_pg_core.timestamp)("createdAt", { withTimezone: true, mode: "string" }).notNull(),
++  expiresAt: (0, import_pg_core.timestamp)("expiresAt", { withTimezone: true, mode: "string" })
++});
++const invitation = neonAuthSchema.table("invitation", {
++  id: (0, import_pg_core.uuid)().primaryKey().default(import_sql.sql`gen_random_uuid()`),
++  organizationId: (0, import_pg_core.uuid)().notNull().references(() => organization.id, { onDelete: "cascade" }),
++  email: (0, import_pg_core.text)().notNull(),
++  role: (0, import_pg_core.text)(),
++  status: (0, import_pg_core.text)().notNull(),
++  expiresAt: (0, import_pg_core.timestamp)("expiresAt", { withTimezone: true, mode: "string" }).notNull(),
++  createdAt: (0, import_pg_core.timestamp)("createdAt", { withTimezone: true, mode: "string" }).notNull().defaultNow(),
++  inviterId: (0, import_pg_core.uuid)().notNull().references(() => users.id, { onDelete: "cascade" })
++}, (table) => [
++  (0, import_pg_core.index)("invitation_email_idx").on(table.email),
++  (0, import_pg_core.index)("invitation_organizationId_idx").on(table.organizationId)
++]);
++const account = neonAuthSchema.table("account", {
++  id: (0, import_pg_core.uuid)().primaryKey().default(import_sql.sql`gen_random_uuid()`),
++  accountId: (0, import_pg_core.text)().notNull(),
++  providerId: (0, import_pg_core.text)().notNull(),
++  userId: (0, import_pg_core.uuid)().notNull().references(() => users.id, { onDelete: "cascade" }),
++  accessToken: (0, import_pg_core.text)(),
++  refreshToken: (0, import_pg_core.text)(),
++  idToken: (0, import_pg_core.text)(),
++  accessTokenExpiresAt: (0, import_pg_core.timestamp)("accessTokenExpiresAt", { withTimezone: true, mode: "string" }),
++  refreshTokenExpiresAt: (0, import_pg_core.timestamp)("refreshTokenExpiresAt", { withTimezone: true, mode: "string" }),
++  scope: (0, import_pg_core.text)(),
++  password: (0, import_pg_core.text)(),
++  createdAt: (0, import_pg_core.timestamp)("createdAt", { withTimezone: true, mode: "string" }).notNull().defaultNow(),
++  updatedAt: (0, import_pg_core.timestamp)("updatedAt", { withTimezone: true, mode: "string" }).notNull()
++}, (table) => [(0, import_pg_core.index)("account_userId_idx").on(table.userId)]);
+ // Annotate the CommonJS export names for ESM import in node:
+ 0 && (module.exports = {
+-  usersSync
++  account,
++  invitation,
++  jwks,
++  member,
++  organization,
++  projectConfig,
++  session,
++  users,
++  usersSync,
++  verification
+ });
+ //# sourceMappingURL=neon-auth.cjs.map
+\ No newline at end of file
+diff --git a/node_modules/drizzle-orm/neon/neon-auth.cjs.map b/node_modules/drizzle-orm/neon/neon-auth.cjs.map
+index 0092cee..a396ac3 100644
+--- a/node_modules/drizzle-orm/neon/neon-auth.cjs.map
++++ b/node_modules/drizzle-orm/neon/neon-auth.cjs.map
+@@ -1 +1 @@
+-{"version":3,"sources":["../../src/neon/neon-auth.ts"],"sourcesContent":["import { jsonb, pgSchema, text, timestamp } from '~/pg-core/index.ts';\n\nconst neonAuthSchema = pgSchema('neon_auth');\n\n/**\n * Table schema of the `users_sync` table used by Neon Auth.\n * This table automatically synchronizes and stores user data from external authentication providers.\n *\n * @schema neon_auth\n * @table users_sync\n */\nexport const usersSync = neonAuthSchema.table('users_sync', {\n\trawJson: jsonb('raw_json').notNull(),\n\tid: text().primaryKey().notNull(),\n\tname: text(),\n\temail: text(),\n\tcreatedAt: timestamp('created_at', { withTimezone: true, mode: 'string' }),\n\tdeletedAt: timestamp('deleted_at', { withTimezone: true, mode: 'string' }),\n\tupdatedAt: timestamp('updated_at', { withTimezone: true, mode: 'string' }),\n});\n"],"mappings":";;;;;;;;;;;;;;;;;;AAAA;AAAA;AAAA;AAAA;AAAA;AAAA,qBAAiD;AAEjD,MAAM,qBAAiB,yBAAS,WAAW;AASpC,MAAM,YAAY,eAAe,MAAM,cAAc;AAAA,EAC3D,aAAS,sBAAM,UAAU,EAAE,QAAQ;AAAA,EACnC,QAAI,qBAAK,EAAE,WAAW,EAAE,QAAQ;AAAA,EAChC,UAAM,qBAAK;AAAA,EACX,WAAO,qBAAK;AAAA,EACZ,eAAW,0BAAU,cAAc,EAAE,cAAc,MAAM,MAAM,SAAS,CAAC;AAAA,EACzE,eAAW,0BAAU,cAAc,EAAE,cAAc,MAAM,MAAM,SAAS,CAAC;AAAA,EACzE,eAAW,0BAAU,cAAc,EAAE,cAAc,MAAM,MAAM,SAAS,CAAC;AAC1E,CAAC;","names":[]}
+\ No newline at end of file
++{"version":3,"sources":["../../src/neon/neon-auth.ts"],"sourcesContent":["import { boolean, index, jsonb, pgSchema, text, timestamp, uuid } from '~/pg-core/index.ts';\nimport { sql } from '~/sql';\n\nconst neonAuthSchema = pgSchema('neon_auth');\n\n/**\n * Table schema of the `users_sync` table used by Neon Auth. This is legacy, for new projects, use the\n * `neon_auth.user` table instead.  This table automatically synchronizes and stores user data from\n * external authentication providers.\n *\n * @schema neon_auth\n * @table users_sync\n */\nexport const usersSync = neonAuthSchema.table('users_sync', {\n\trawJson: jsonb('raw_json').notNull(),\n\tid: text().primaryKey().notNull(),\n\tname: text(),\n\temail: text(),\n\tcreatedAt: timestamp('created_at', { withTimezone: true, mode: 'string' }),\n\tdeletedAt: timestamp('deleted_at', { withTimezone: true, mode: 'string' }),\n\tupdatedAt: timestamp('updated_at', { withTimezone: true, mode: 'string' }),\n});\n\n/**\n * Table schema of the `user` table used by Neon Auth.\n *\n * @schema neon_auth\n * @table user\n */\nexport const users = neonAuthSchema.table('user', {\n\tid: uuid().primaryKey().default(sql`gen_random_uuid()`),\n\tname: text().notNull(),\n\temail: text().unique().notNull(),\n\temailVerified: boolean('emailVerified').notNull(),\n\timage: text(),\n\tcreatedAt: timestamp('createdAt', { withTimezone: true, mode: 'string' }).notNull().defaultNow(),\n\tupdatedAt: timestamp('updatedAt', { withTimezone: true, mode: 'string' }).notNull().defaultNow(),\n\trole: text(),\n\tbanned: boolean(),\n\tbanReason: text(),\n\tbanExpires: timestamp('banExpires', { withTimezone: true, mode: 'string' }),\n});\n\n/**\n * Table schema of the `verification` table used by Neon Auth.\n *\n * @schema neon_auth\n * @table verification\n */\nexport const verification = neonAuthSchema.table('verification', {\n\tid: uuid().primaryKey().default(sql`gen_random_uuid()`),\n\tidentifier: text().notNull(),\n\tvalue: text().notNull(),\n\texpiresAt: timestamp('expiresAt', { withTimezone: true, mode: 'string' }).notNull(),\n\tcreatedAt: timestamp('createdAt', { withTimezone: true, mode: 'string' }).notNull().defaultNow(),\n\tupdatedAt: timestamp('updatedAt', { withTimezone: true, mode: 'string' }).notNull().defaultNow(),\n}, (table) => [index('verification_identifier_idx').on(table.identifier)]);\n\n/**\n * Table schema of the `session` table used by Neon Auth.\n *\n * @schema neon_auth\n * @table session\n */\nexport const session = neonAuthSchema.table('session', {\n\tid: uuid().primaryKey().default(sql`gen_random_uuid()`),\n\texpiresAt: timestamp('expiresAt', { withTimezone: true, mode: 'string' }).notNull(),\n\ttoken: text().notNull().unique(),\n\tcreatedAt: timestamp('createdAt', { withTimezone: true, mode: 'string' }).notNull().defaultNow(),\n\tupdatedAt: timestamp('updatedAt', { withTimezone: true, mode: 'string' }).notNull(),\n\tipAddress: text(),\n\tuserAgent: text(),\n\tuserId: uuid().notNull().references(() => users.id, { onDelete: 'cascade' }),\n\timpersonatedBy: text(),\n\tactiveOrganizationId: text(),\n}, (table) => [index('session_userId_idx').on(table.userId)]);\n\n/**\n * Table schema of the `project_config` table used by Neon Auth.\n *\n * @schema neon_auth\n * @table project_config\n */\nexport const projectConfig = neonAuthSchema.table('project_config', {\n\tid: uuid().primaryKey().default(sql`gen_random_uuid()`),\n\tname: text().notNull(),\n\tendpointId: text('endpoint_id').notNull().unique(),\n\tcreatedAt: timestamp('created_at', { withTimezone: true, mode: 'string' }).notNull().defaultNow(),\n\tupdatedAt: timestamp('updated_at', { withTimezone: true, mode: 'string' }).notNull().defaultNow(),\n\ttrustedOrigins: jsonb('trusted_origins').notNull(),\n\tsocialProviders: jsonb('social_providers').notNull(),\n\temailProvider: jsonb('email_provider'),\n\temailAndPassword: jsonb('email_and_password'),\n\tallowLocalhost: boolean('allow_localhost').notNull(),\n\tpluginConfigs: jsonb('plugin_configs'),\n\twebhookConfig: jsonb('webhook_config'),\n});\n\n/**\n * Table schema of the `organization` table used by Neon Auth.\n *\n * @schema neon_auth\n * @table organization\n */\nexport const organization = neonAuthSchema.table('organization', {\n\tid: uuid().primaryKey().default(sql`gen_random_uuid()`),\n\tname: text().notNull(),\n\tslug: text().notNull().unique(),\n\tlogo: text(),\n\tcreatedAt: timestamp('createdAt', { withTimezone: true, mode: 'string' }).notNull(),\n\tmetadata: text(),\n});\n\n/**\n * Table schema of the `member` table used by Neon Auth.\n *\n * @schema neon_auth\n * @table member\n */\nexport const member = neonAuthSchema.table('member', {\n\tid: uuid().primaryKey().default(sql`gen_random_uuid()`),\n\torganizationId: uuid().notNull().references(() => organization.id, { onDelete: 'cascade' }),\n\tuserId: uuid().notNull().references(() => users.id, { onDelete: 'cascade' }),\n\trole: text().notNull(),\n\tcreatedAt: timestamp('createdAt', { withTimezone: true, mode: 'string' }).notNull(),\n}, (table) => [\n\tindex('member_organizationId_idx').on(table.organizationId),\n\tindex('member_userId_idx').on(table.userId),\n]);\n\n/**\n * Table schema of the `jwks` table used by Neon Auth.\n *\n * @schema neon_auth\n * @table jwks\n */\nexport const jwks = neonAuthSchema.table('jwks', {\n\tid: uuid().primaryKey().default(sql`gen_random_uuid()`),\n\tpublicKey: text().notNull(),\n\tprivateKey: text().notNull(),\n\tcreatedAt: timestamp('createdAt', { withTimezone: true, mode: 'string' }).notNull(),\n\texpiresAt: timestamp('expiresAt', { withTimezone: true, mode: 'string' }),\n});\n\n/**\n * Table schema of the `invitation` table used by Neon Auth.\n *\n * @schema neon_auth\n * @table invitation\n */\nexport const invitation = neonAuthSchema.table('invitation', {\n\tid: uuid().primaryKey().default(sql`gen_random_uuid()`),\n\torganizationId: uuid().notNull().references(() => organization.id, { onDelete: 'cascade' }),\n\temail: text().notNull(),\n\trole: text(),\n\tstatus: text().notNull(),\n\texpiresAt: timestamp('expiresAt', { withTimezone: true, mode: 'string' }).notNull(),\n\tcreatedAt: timestamp('createdAt', { withTimezone: true, mode: 'string' }).notNull().defaultNow(),\n\tinviterId: uuid().notNull().references(() => users.id, { onDelete: 'cascade' }),\n}, (table) => [\n\tindex('invitation_email_idx').on(table.email),\n\tindex('invitation_organizationId_idx').on(table.organizationId),\n]);\n\n/**\n * Table schema of the `account` table used by Neon Auth.\n *\n * @schema neon_auth\n * @table account\n */\nexport const account = neonAuthSchema.table('account', {\n\tid: uuid().primaryKey().default(sql`gen_random_uuid()`),\n\taccountId: text().notNull(),\n\tproviderId: text().notNull(),\n\tuserId: uuid().notNull().references(() => users.id, { onDelete: 'cascade' }),\n\taccessToken: text(),\n\trefreshToken: text(),\n\tidToken: text(),\n\taccessTokenExpiresAt: timestamp('accessTokenExpiresAt', { withTimezone: true, mode: 'string' }),\n\trefreshTokenExpiresAt: timestamp('refreshTokenExpiresAt', { withTimezone: true, mode: 'string' }),\n\tscope: text(),\n\tpassword: text(),\n\tcreatedAt: timestamp('createdAt', { withTimezone: true, mode: 'string' }).notNull().defaultNow(),\n\tupdatedAt: timestamp('updatedAt', { withTimezone: true, mode: 'string' }).notNull(),\n}, (table) => [index('account_userId_idx').on(table.userId)]);\n"],"mappings":"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","names":[]}
+\ No newline at end of file
+diff --git a/node_modules/drizzle-orm/neon/neon-auth.d.cts b/node_modules/drizzle-orm/neon/neon-auth.d.cts
+index 0ec5117..10e6bfc 100644
+--- a/node_modules/drizzle-orm/neon/neon-auth.d.cts
++++ b/node_modules/drizzle-orm/neon/neon-auth.d.cts
+@@ -1,6 +1,7 @@
+ /**
+- * Table schema of the `users_sync` table used by Neon Auth.
+- * This table automatically synchronizes and stores user data from external authentication providers.
++ * Table schema of the `users_sync` table used by Neon Auth. This is legacy, for new projects, use the
++ * `neon_auth.user` table instead.  This table automatically synchronizes and stores user data from
++ * external authentication providers.
+  *
+  * @schema neon_auth
+  * @table users_sync
+@@ -131,3 +132,1412 @@ export declare const usersSync: import("../pg-core/index.ts").PgTableWithColumns
+     };
+     dialect: "pg";
+ }>;
++/**
++ * Table schema of the `user` table used by Neon Auth.
++ *
++ * @schema neon_auth
++ * @table user
++ */
++export declare const users: import("../pg-core/index.ts").PgTableWithColumns<{
++    name: "user";
++    schema: "neon_auth";
++    columns: {
++        id: import("../pg-core/index.ts").PgColumn<{
++            name: "id";
++            tableName: "user";
++            dataType: "string";
++            columnType: "PgUUID";
++            data: string;
++            driverParam: string;
++            notNull: true;
++            hasDefault: true;
++            isPrimaryKey: true;
++            isAutoincrement: false;
++            hasRuntimeDefault: false;
++            enumValues: undefined;
++            baseColumn: never;
++            identity: undefined;
++            generated: undefined;
++        }, {}, {}>;
++        name: import("../pg-core/index.ts").PgColumn<{
++            name: "name";
++            tableName: "user";
++            dataType: "string";
++            columnType: "PgText";
++            data: string;
++            driverParam: string;
++            notNull: true;
++            hasDefault: false;
++            isPrimaryKey: false;
++            isAutoincrement: false;
++            hasRuntimeDefault: false;
++            enumValues: [string, ...string[]];
++            baseColumn: never;
++            identity: undefined;
++            generated: undefined;
++        }, {}, {}>;
++        email: import("../pg-core/index.ts").PgColumn<{
++            name: "email";
++            tableName: "user";
++            dataType: "string";
++            columnType: "PgText";
++            data: string;
++            driverParam: string;
++            notNull: true;
++            hasDefault: false;
++            isPrimaryKey: false;
++            isAutoincrement: false;
++            hasRuntimeDefault: false;
++            enumValues: [string, ...string[]];
++            baseColumn: never;
++            identity: undefined;
++            generated: undefined;
++        }, {}, {}>;
++        emailVerified: import("../pg-core/index.ts").PgColumn<{
++            name: "emailVerified";
++            tableName: "user";
++            dataType: "boolean";
++            columnType: "PgBoolean";
++            data: boolean;
++            driverParam: boolean;
++            notNull: true;
++            hasDefault: false;
++            isPrimaryKey: false;
++            isAutoincrement: false;
++            hasRuntimeDefault: false;
++            enumValues: undefined;
++            baseColumn: never;
++            identity: undefined;
++            generated: undefined;
++        }, {}, {}>;
++        image: import("../pg-core/index.ts").PgColumn<{
++            name: "image";
++            tableName: "user";
++            dataType: "string";
++            columnType: "PgText";
++            data: string;
++            driverParam: string;
++            notNull: false;
++            hasDefault: false;
++            isPrimaryKey: false;
++            isAutoincrement: false;
++            hasRuntimeDefault: false;
++            enumValues: [string, ...string[]];
++            baseColumn: never;
++            identity: undefined;
++            generated: undefined;
++        }, {}, {}>;
++        createdAt: import("../pg-core/index.ts").PgColumn<{
++            name: "createdAt";
++            tableName: "user";
++            dataType: "string";
++            columnType: "PgTimestampString";
++            data: string;
++            driverParam: string;
++            notNull: true;
++            hasDefault: true;
++            isPrimaryKey: false;
++            isAutoincrement: false;
++            hasRuntimeDefault: false;
++            enumValues: undefined;
++            baseColumn: never;
++            identity: undefined;
++            generated: undefined;
++        }, {}, {}>;
++        updatedAt: import("../pg-core/index.ts").PgColumn<{
++            name: "updatedAt";
++            tableName: "user";
++            dataType: "string";
++            columnType: "PgTimestampString";
++            data: string;
++            driverParam: string;
++            notNull: true;
++            hasDefault: true;
++            isPrimaryKey: false;
++            isAutoincrement: false;
++            hasRuntimeDefault: false;
++            enumValues: undefined;
++            baseColumn: never;
++            identity: undefined;
++            generated: undefined;
++        }, {}, {}>;
++        role: import("../pg-core/index.ts").PgColumn<{
++            name: "role";
++            tableName: "user";
++            dataType: "string";
++            columnType: "PgText";
++            data: string;
++            driverParam: string;
++            notNull: false;
++            hasDefault: false;
++            isPrimaryKey: false;
++            isAutoincrement: false;
++            hasRuntimeDefault: false;
++            enumValues: [string, ...string[]];
++            baseColumn: never;
++            identity: undefined;
++            generated: undefined;
++        }, {}, {}>;
++        banned: import("../pg-core/index.ts").PgColumn<{
++            name: "banned";
++            tableName: "user";
++            dataType: "boolean";
++            columnType: "PgBoolean";
++            data: boolean;
++            driverParam: boolean;
++            notNull: false;
++            hasDefault: false;
++            isPrimaryKey: false;
++            isAutoincrement: false;
++            hasRuntimeDefault: false;
++            enumValues: undefined;
++            baseColumn: never;
++            identity: undefined;
++            generated: undefined;
++        }, {}, {}>;
++        banReason: import("../pg-core/index.ts").PgColumn<{
++            name: "banReason";
++            tableName: "user";
++            dataType: "string";
++            columnType: "PgText";
++            data: string;
++            driverParam: string;
++            notNull: false;
++            hasDefault: false;
++            isPrimaryKey: false;
++            isAutoincrement: false;
++            hasRuntimeDefault: false;
++            enumValues: [string, ...string[]];
++            baseColumn: never;
++            identity: undefined;
++            generated: undefined;
++        }, {}, {}>;
++        banExpires: import("../pg-core/index.ts").PgColumn<{
++            name: "banExpires";
++            tableName: "user";
++            dataType: "string";
++            columnType: "PgTimestampString";
++            data: string;
++            driverParam: string;
++            notNull: false;
++            hasDefault: false;
++            isPrimaryKey: false;
++            isAutoincrement: false;
++            hasRuntimeDefault: false;
++            enumValues: undefined;
++            baseColumn: never;
++            identity: undefined;
++            generated: undefined;
++        }, {}, {}>;
++    };
++    dialect: "pg";
++}>;
++/**
++ * Table schema of the `verification` table used by Neon Auth.
++ *
++ * @schema neon_auth
++ * @table verification
++ */
++export declare const verification: import("../pg-core/index.ts").PgTableWithColumns<{
++    name: "verification";
++    schema: "neon_auth";
++    columns: {
++        id: import("../pg-core/index.ts").PgColumn<{
++            name: "id";
++            tableName: "verification";
++            dataType: "string";
++            columnType: "PgUUID";
++            data: string;
++            driverParam: string;
++            notNull: true;
++            hasDefault: true;
++            isPrimaryKey: true;
++            isAutoincrement: false;
++            hasRuntimeDefault: false;
++            enumValues: undefined;
++            baseColumn: never;
++            identity: undefined;
++            generated: undefined;
++        }, {}, {}>;
++        identifier: import("../pg-core/index.ts").PgColumn<{
++            name: "identifier";
++            tableName: "verification";
++            dataType: "string";
++            columnType: "PgText";
++            data: string;
++            driverParam: string;
++            notNull: true;
++            hasDefault: false;
++            isPrimaryKey: false;
++            isAutoincrement: false;
++            hasRuntimeDefault: false;
++            enumValues: [string, ...string[]];
++            baseColumn: never;
++            identity: undefined;
++            generated: undefined;
++        }, {}, {}>;
++        value: import("../pg-core/index.ts").PgColumn<{
++            name: "value";
++            tableName: "verification";
++            dataType: "string";
++            columnType: "PgText";
++            data: string;
++            driverParam: string;
++            notNull: true;
++            hasDefault: false;
++            isPrimaryKey: false;
++            isAutoincrement: false;
++            hasRuntimeDefault: false;
++            enumValues: [string, ...string[]];
++            baseColumn: never;
++            identity: undefined;
++            generated: undefined;
++        }, {}, {}>;
++        expiresAt: import("../pg-core/index.ts").PgColumn<{
++            name: "expiresAt";
++            tableName: "verification";
++            dataType: "string";
++            columnType: "PgTimestampString";
++            data: string;
++            driverParam: string;
++            notNull: true;
++            hasDefault: false;
++            isPrimaryKey: false;
++            isAutoincrement: false;
++            hasRuntimeDefault: false;
++            enumValues: undefined;
++            baseColumn: never;
++            identity: undefined;
++            generated: undefined;
++        }, {}, {}>;
++        createdAt: import("../pg-core/index.ts").PgColumn<{
++            name: "createdAt";
++            tableName: "verification";
++            dataType: "string";
++            columnType: "PgTimestampString";
++            data: string;
++            driverParam: string;
++            notNull: true;
++            hasDefault: true;
++            isPrimaryKey: false;
++            isAutoincrement: false;
++            hasRuntimeDefault: false;
++            enumValues: undefined;
++            baseColumn: never;
++            identity: undefined;
++            generated: undefined;
++        }, {}, {}>;
++        updatedAt: import("../pg-core/index.ts").PgColumn<{
++            name: "updatedAt";
++            tableName: "verification";
++            dataType: "string";
++            columnType: "PgTimestampString";
++            data: string;
++            driverParam: string;
++            notNull: true;
++            hasDefault: true;
++            isPrimaryKey: false;
++            isAutoincrement: false;
++            hasRuntimeDefault: false;
++            enumValues: undefined;
++            baseColumn: never;
++            identity: undefined;
++            generated: undefined;
++        }, {}, {}>;
++    };
++    dialect: "pg";
++}>;
++/**
++ * Table schema of the `session` table used by Neon Auth.
++ *
++ * @schema neon_auth
++ * @table session
++ */
++export declare const session: import("../pg-core/index.ts").PgTableWithColumns<{
++    name: "session";
++    schema: "neon_auth";
++    columns: {
++        id: import("../pg-core/index.ts").PgColumn<{
++            name: "id";
++            tableName: "session";
++            dataType: "string";
++            columnType: "PgUUID";
++            data: string;
++            driverParam: string;
++            notNull: true;
++            hasDefault: true;
++            isPrimaryKey: true;
++            isAutoincrement: false;
++            hasRuntimeDefault: false;
++            enumValues: undefined;
++            baseColumn: never;
++            identity: undefined;
++            generated: undefined;
++        }, {}, {}>;
++        expiresAt: import("../pg-core/index.ts").PgColumn<{
++            name: "expiresAt";
++            tableName: "session";
++            dataType: "string";
++            columnType: "PgTimestampString";
++            data: string;
++            driverParam: string;
++            notNull: true;
++            hasDefault: false;
++            isPrimaryKey: false;
++            isAutoincrement: false;
++            hasRuntimeDefault: false;
++            enumValues: undefined;
++            baseColumn: never;
++            identity: undefined;
++            generated: undefined;
++        }, {}, {}>;
++        token: import("../pg-core/index.ts").PgColumn<{
++            name: "token";
++            tableName: "session";
++            dataType: "string";
++            columnType: "PgText";
++            data: string;
++            driverParam: string;
++            notNull: true;
++            hasDefault: false;
++            isPrimaryKey: false;
++            isAutoincrement: false;
++            hasRuntimeDefault: false;
++            enumValues: [string, ...string[]];
++            baseColumn: never;
++            identity: undefined;
++            generated: undefined;
++        }, {}, {}>;
++        createdAt: import("../pg-core/index.ts").PgColumn<{
++            name: "createdAt";
++            tableName: "session";
++            dataType: "string";
++            columnType: "PgTimestampString";
++            data: string;
++            driverParam: string;
++            notNull: true;
++            hasDefault: true;
++            isPrimaryKey: false;
++            isAutoincrement: false;
++            hasRuntimeDefault: false;
++            enumValues: undefined;
++            baseColumn: never;
++            identity: undefined;
++            generated: undefined;
++        }, {}, {}>;
++        updatedAt: import("../pg-core/index.ts").PgColumn<{
++            name: "updatedAt";
++            tableName: "session";
++            dataType: "string";
++            columnType: "PgTimestampString";
++            data: string;
++            driverParam: string;
++            notNull: true;
++            hasDefault: false;
++            isPrimaryKey: false;
++            isAutoincrement: false;
++            hasRuntimeDefault: false;
++            enumValues: undefined;
++            baseColumn: never;
++            identity: undefined;
++            generated: undefined;
++        }, {}, {}>;
++        ipAddress: import("../pg-core/index.ts").PgColumn<{
++            name: "ipAddress";
++            tableName: "session";
++            dataType: "string";
++            columnType: "PgText";
++            data: string;
++            driverParam: string;
++            notNull: false;
++            hasDefault: false;
++            isPrimaryKey: false;
++            isAutoincrement: false;
++            hasRuntimeDefault: false;
++            enumValues: [string, ...string[]];
++            baseColumn: never;
++            identity: undefined;
++            generated: undefined;
++        }, {}, {}>;
++        userAgent: import("../pg-core/index.ts").PgColumn<{
++            name: "userAgent";
++            tableName: "session";
++            dataType: "string";
++            columnType: "PgText";
++            data: string;
++            driverParam: string;
++            notNull: false;
++            hasDefault: false;
++            isPrimaryKey: false;
++            isAutoincrement: false;
++            hasRuntimeDefault: false;
++            enumValues: [string, ...string[]];
++            baseColumn: never;
++            identity: undefined;
++            generated: undefined;
++        }, {}, {}>;
++        userId: import("../pg-core/index.ts").PgColumn<{
++            name: "userId";
++            tableName: "session";
++            dataType: "string";
++            columnType: "PgUUID";
++            data: string;
++            driverParam: string;
++            notNull: true;
++            hasDefault: false;
++            isPrimaryKey: false;
++            isAutoincrement: false;
++            hasRuntimeDefault: false;
++            enumValues: undefined;
++            baseColumn: never;
++            identity: undefined;
++            generated: undefined;
++        }, {}, {}>;
++        impersonatedBy: import("../pg-core/index.ts").PgColumn<{
++            name: "impersonatedBy";
++            tableName: "session";
++            dataType: "string";
++            columnType: "PgText";
++            data: string;
++            driverParam: string;
++            notNull: false;
++            hasDefault: false;
++            isPrimaryKey: false;
++            isAutoincrement: false;
++            hasRuntimeDefault: false;
++            enumValues: [string, ...string[]];
++            baseColumn: never;
++            identity: undefined;
++            generated: undefined;
++        }, {}, {}>;
++        activeOrganizationId: import("../pg-core/index.ts").PgColumn<{
++            name: "activeOrganizationId";
++            tableName: "session";
++            dataType: "string";
++            columnType: "PgText";
++            data: string;
++            driverParam: string;
++            notNull: false;
++            hasDefault: false;
++            isPrimaryKey: false;
++            isAutoincrement: false;
++            hasRuntimeDefault: false;
++            enumValues: [string, ...string[]];
++            baseColumn: never;
++            identity: undefined;
++            generated: undefined;
++        }, {}, {}>;
++    };
++    dialect: "pg";
++}>;
++/**
++ * Table schema of the `project_config` table used by Neon Auth.
++ *
++ * @schema neon_auth
++ * @table project_config
++ */
++export declare const projectConfig: import("../pg-core/index.ts").PgTableWithColumns<{
++    name: "project_config";
++    schema: "neon_auth";
++    columns: {
++        id: import("../pg-core/index.ts").PgColumn<{
++            name: "id";
++            tableName: "project_config";
++            dataType: "string";
++            columnType: "PgUUID";
++            data: string;
++            driverParam: string;
++            notNull: true;
++            hasDefault: true;
++            isPrimaryKey: true;
++            isAutoincrement: false;
++            hasRuntimeDefault: false;
++            enumValues: undefined;
++            baseColumn: never;
++            identity: undefined;
++            generated: undefined;
++        }, {}, {}>;
++        name: import("../pg-core/index.ts").PgColumn<{
++            name: "name";
++            tableName: "project_config";
++            dataType: "string";
++            columnType: "PgText";
++            data: string;
++            driverParam: string;
++            notNull: true;
++            hasDefault: false;
++            isPrimaryKey: false;
++            isAutoincrement: false;
++            hasRuntimeDefault: false;
++            enumValues: [string, ...string[]];
++            baseColumn: never;
++            identity: undefined;
++            generated: undefined;
++        }, {}, {}>;
++        endpointId: import("../pg-core/index.ts").PgColumn<{
++            name: "endpoint_id";
++            tableName: "project_config";
++            dataType: "string";
++            columnType: "PgText";
++            data: string;
++            driverParam: string;
++            notNull: true;
++            hasDefault: false;
++            isPrimaryKey: false;
++            isAutoincrement: false;
++            hasRuntimeDefault: false;
++            enumValues: [string, ...string[]];
++            baseColumn: never;
++            identity: undefined;
++            generated: undefined;
++        }, {}, {}>;
++        createdAt: import("../pg-core/index.ts").PgColumn<{
++            name: "created_at";
++            tableName: "project_config";
++            dataType: "string";
++            columnType: "PgTimestampString";
++            data: string;
++            driverParam: string;
++            notNull: true;
++            hasDefault: true;
++            isPrimaryKey: false;
++            isAutoincrement: false;
++            hasRuntimeDefault: false;
++            enumValues: undefined;
++            baseColumn: never;
++            identity: undefined;
++            generated: undefined;
++        }, {}, {}>;
++        updatedAt: import("../pg-core/index.ts").PgColumn<{
++            name: "updated_at";
++            tableName: "project_config";
++            dataType: "string";
++            columnType: "PgTimestampString";
++            data: string;
++            driverParam: string;
++            notNull: true;
++            hasDefault: true;
++            isPrimaryKey: false;
++            isAutoincrement: false;
++            hasRuntimeDefault: false;
++            enumValues: undefined;
++            baseColumn: never;
++            identity: undefined;
++            generated: undefined;
++        }, {}, {}>;
++        trustedOrigins: import("../pg-core/index.ts").PgColumn<{
++            name: "trusted_origins";
++            tableName: "project_config";
++            dataType: "json";
++            columnType: "PgJsonb";
++            data: unknown;
++            driverParam: unknown;
++            notNull: true;
++            hasDefault: false;
++            isPrimaryKey: false;
++            isAutoincrement: false;
++            hasRuntimeDefault: false;
++            enumValues: undefined;
++            baseColumn: never;
++            identity: undefined;
++            generated: undefined;
++        }, {}, {}>;
++        socialProviders: import("../pg-core/index.ts").PgColumn<{
++            name: "social_providers";
++            tableName: "project_config";
++            dataType: "json";
++            columnType: "PgJsonb";
++            data: unknown;
++            driverParam: unknown;
++            notNull: true;
++            hasDefault: false;
++            isPrimaryKey: false;
++            isAutoincrement: false;
++            hasRuntimeDefault: false;
++            enumValues: undefined;
++            baseColumn: never;
++            identity: undefined;
++            generated: undefined;
++        }, {}, {}>;
++        emailProvider: import("../pg-core/index.ts").PgColumn<{
++            name: "email_provider";
++            tableName: "project_config";
++            dataType: "json";
++            columnType: "PgJsonb";
++            data: unknown;
++            driverParam: unknown;
++            notNull: false;
++            hasDefault: false;
++            isPrimaryKey: false;
++            isAutoincrement: false;
++            hasRuntimeDefault: false;
++            enumValues: undefined;
++            baseColumn: never;
++            identity: undefined;
++            generated: undefined;
++        }, {}, {}>;
++        emailAndPassword: import("../pg-core/index.ts").PgColumn<{
++            name: "email_and_password";
++            tableName: "project_config";
++            dataType: "json";
++            columnType: "PgJsonb";
++            data: unknown;
++            driverParam: unknown;
++            notNull: false;
++            hasDefault: false;
++            isPrimaryKey: false;
++            isAutoincrement: false;
++            hasRuntimeDefault: false;
++            enumValues: undefined;
++            baseColumn: never;
++            identity: undefined;
++            generated: undefined;
++        }, {}, {}>;
++        allowLocalhost: import("../pg-core/index.ts").PgColumn<{
++            name: "allow_localhost";
++            tableName: "project_config";
++            dataType: "boolean";
++            columnType: "PgBoolean";
++            data: boolean;
++            driverParam: boolean;
++            notNull: true;
++            hasDefault: false;
++            isPrimaryKey: false;
++            isAutoincrement: false;
++            hasRuntimeDefault: false;
++            enumValues: undefined;
++            baseColumn: never;
++            identity: undefined;
++            generated: undefined;
++        }, {}, {}>;
++        pluginConfigs: import("../pg-core/index.ts").PgColumn<{
++            name: "plugin_configs";
++            tableName: "project_config";
++            dataType: "json";
++            columnType: "PgJsonb";
++            data: unknown;
++            driverParam: unknown;
++            notNull: false;
++            hasDefault: false;
++            isPrimaryKey: false;
++            isAutoincrement: false;
++            hasRuntimeDefault: false;
++            enumValues: undefined;
++            baseColumn: never;
++            identity: undefined;
++            generated: undefined;
++        }, {}, {}>;
++        webhookConfig: import("../pg-core/index.ts").PgColumn<{
++            name: "webhook_config";
++            tableName: "project_config";
++            dataType: "json";
++            columnType: "PgJsonb";
++            data: unknown;
++            driverParam: unknown;
++            notNull: false;
++            hasDefault: false;
++            isPrimaryKey: false;
++            isAutoincrement: false;
++            hasRuntimeDefault: false;
++            enumValues: undefined;
++            baseColumn: never;
++            identity: undefined;
++            generated: undefined;
++        }, {}, {}>;
++    };
++    dialect: "pg";
++}>;
++/**
++ * Table schema of the `organization` table used by Neon Auth.
++ *
++ * @schema neon_auth
++ * @table organization
++ */
++export declare const organization: import("../pg-core/index.ts").PgTableWithColumns<{
++    name: "organization";
++    schema: "neon_auth";
++    columns: {
++        id: import("../pg-core/index.ts").PgColumn<{
++            name: "id";
++            tableName: "organization";
++            dataType: "string";
++            columnType: "PgUUID";
++            data: string;
++            driverParam: string;
++            notNull: true;
++            hasDefault: true;
++            isPrimaryKey: true;
++            isAutoincrement: false;
++            hasRuntimeDefault: false;
++            enumValues: undefined;
++            baseColumn: never;
++            identity: undefined;
++            generated: undefined;
++        }, {}, {}>;
++        name: import("../pg-core/index.ts").PgColumn<{
++            name: "name";
++            tableName: "organization";
++            dataType: "string";
++            columnType: "PgText";
++            data: string;
++            driverParam: string;
++            notNull: true;
++            hasDefault: false;
++            isPrimaryKey: false;
++            isAutoincrement: false;
++            hasRuntimeDefault: false;
++            enumValues: [string, ...string[]];
++            baseColumn: never;
++            identity: undefined;
++            generated: undefined;
++        }, {}, {}>;
++        slug: import("../pg-core/index.ts").PgColumn<{
++            name: "slug";
++            tableName: "organization";
++            dataType: "string";
++            columnType: "PgText";
++            data: string;
++            driverParam: string;
++            notNull: true;
++            hasDefault: false;
++            isPrimaryKey: false;
++            isAutoincrement: false;
++            hasRuntimeDefault: false;
++            enumValues: [string, ...string[]];
++            baseColumn: never;
++            identity: undefined;
++            generated: undefined;
++        }, {}, {}>;
++        logo: import("../pg-core/index.ts").PgColumn<{
++            name: "logo";
++            tableName: "organization";
++            dataType: "string";
++            columnType: "PgText";
++            data: string;
++            driverParam: string;
++            notNull: false;
++            hasDefault: false;
++            isPrimaryKey: false;
++            isAutoincrement: false;
++            hasRuntimeDefault: false;
++            enumValues: [string, ...string[]];
++            baseColumn: never;
++            identity: undefined;
++            generated: undefined;
++        }, {}, {}>;
++        createdAt: import("../pg-core/index.ts").PgColumn<{
++            name: "createdAt";
++            tableName: "organization";
++            dataType: "string";
++            columnType: "PgTimestampString";
++            data: string;
++            driverParam: string;
++            notNull: true;
++            hasDefault: false;
++            isPrimaryKey: false;
++            isAutoincrement: false;
++            hasRuntimeDefault: false;
++            enumValues: undefined;
++            baseColumn: never;
++            identity: undefined;
++            generated: undefined;
++        }, {}, {}>;
++        metadata: import("../pg-core/index.ts").PgColumn<{
++            name: "metadata";
++            tableName: "organization";
++            dataType: "string";
++            columnType: "PgText";
++            data: string;
++            driverParam: string;
++            notNull: false;
++            hasDefault: false;
++            isPrimaryKey: false;
++            isAutoincrement: false;
++            hasRuntimeDefault: false;
++            enumValues: [string, ...string[]];
++            baseColumn: never;
++            identity: undefined;
++            generated: undefined;
++        }, {}, {}>;
++    };
++    dialect: "pg";
++}>;
++/**
++ * Table schema of the `member` table used by Neon Auth.
++ *
++ * @schema neon_auth
++ * @table member
++ */
++export declare const member: import("../pg-core/index.ts").PgTableWithColumns<{
++    name: "member";
++    schema: "neon_auth";
++    columns: {
++        id: import("../pg-core/index.ts").PgColumn<{
++            name: "id";
++            tableName: "member";
++            dataType: "string";
++            columnType: "PgUUID";
++            data: string;
++            driverParam: string;
++            notNull: true;
++            hasDefault: true;
++            isPrimaryKey: true;
++            isAutoincrement: false;
++            hasRuntimeDefault: false;
++            enumValues: undefined;
++            baseColumn: never;
++            identity: undefined;
++            generated: undefined;
++        }, {}, {}>;
++        organizationId: import("../pg-core/index.ts").PgColumn<{
++            name: "organizationId";
++            tableName: "member";
++            dataType: "string";
++            columnType: "PgUUID";
++            data: string;
++            driverParam: string;
++            notNull: true;
++            hasDefault: false;
++            isPrimaryKey: false;
++            isAutoincrement: false;
++            hasRuntimeDefault: false;
++            enumValues: undefined;
++            baseColumn: never;
++            identity: undefined;
++            generated: undefined;
++        }, {}, {}>;
++        userId: import("../pg-core/index.ts").PgColumn<{
++            name: "userId";
++            tableName: "member";
++            dataType: "string";
++            columnType: "PgUUID";
++            data: string;
++            driverParam: string;
++            notNull: true;
++            hasDefault: false;
++            isPrimaryKey: false;
++            isAutoincrement: false;
++            hasRuntimeDefault: false;
++            enumValues: undefined;
++            baseColumn: never;
++            identity: undefined;
++            generated: undefined;
++        }, {}, {}>;
++        role: import("../pg-core/index.ts").PgColumn<{
++            name: "role";
++            tableName: "member";
++            dataType: "string";
++            columnType: "PgText";
++            data: string;
++            driverParam: string;
++            notNull: true;
++            hasDefault: false;
++            isPrimaryKey: false;
++            isAutoincrement: false;
++            hasRuntimeDefault: false;
++            enumValues: [string, ...string[]];
++            baseColumn: never;
++            identity: undefined;
++            generated: undefined;
++        }, {}, {}>;
++        createdAt: import("../pg-core/index.ts").PgColumn<{
++            name: "createdAt";
++            tableName: "member";
++            dataType: "string";
++            columnType: "PgTimestampString";
++            data: string;
++            driverParam: string;
++            notNull: true;
++            hasDefault: false;
++            isPrimaryKey: false;
++            isAutoincrement: false;
++            hasRuntimeDefault: false;
++            enumValues: undefined;
++            baseColumn: never;
++            identity: undefined;
++            generated: undefined;
++        }, {}, {}>;
++    };
++    dialect: "pg";
++}>;
++/**
++ * Table schema of the `jwks` table used by Neon Auth.
++ *
++ * @schema neon_auth
++ * @table jwks
++ */
++export declare const jwks: import("../pg-core/index.ts").PgTableWithColumns<{
++    name: "jwks";
++    schema: "neon_auth";
++    columns: {
++        id: import("../pg-core/index.ts").PgColumn<{
++            name: "id";
++            tableName: "jwks";
++            dataType: "string";
++            columnType: "PgUUID";
++            data: string;
++            driverParam: string;
++            notNull: true;
++            hasDefault: true;
++            isPrimaryKey: true;
++            isAutoincrement: false;
++            hasRuntimeDefault: false;
++            enumValues: undefined;
++            baseColumn: never;
++            identity: undefined;
++            generated: undefined;
++        }, {}, {}>;
++        publicKey: import("../pg-core/index.ts").PgColumn<{
++            name: "publicKey";
++            tableName: "jwks";
++            dataType: "string";
++            columnType: "PgText";
++            data: string;
++            driverParam: string;
++            notNull: true;
++            hasDefault: false;
++            isPrimaryKey: false;
++            isAutoincrement: false;
++            hasRuntimeDefault: false;
++            enumValues: [string, ...string[]];
++            baseColumn: never;
++            identity: undefined;
++            generated: undefined;
++        }, {}, {}>;
++        privateKey: import("../pg-core/index.ts").PgColumn<{
++            name: "privateKey";
++            tableName: "jwks";
++            dataType: "string";
++            columnType: "PgText";
++            data: string;
++            driverParam: string;
++            notNull: true;
++            hasDefault: false;
++            isPrimaryKey: false;
++            isAutoincrement: false;
++            hasRuntimeDefault: false;
++            enumValues: [string, ...string[]];
++            baseColumn: never;
++            identity: undefined;
++            generated: undefined;
++        }, {}, {}>;
++        createdAt: import("../pg-core/index.ts").PgColumn<{
++            name: "createdAt";
++            tableName: "jwks";
++            dataType: "string";
++            columnType: "PgTimestampString";
++            data: string;
++            driverParam: string;
++            notNull: true;
++            hasDefault: false;
++            isPrimaryKey: false;
++            isAutoincrement: false;
++            hasRuntimeDefault: false;
++            enumValues: undefined;
++            baseColumn: never;
++            identity: undefined;
++            generated: undefined;
++        }, {}, {}>;
++        expiresAt: import("../pg-core/index.ts").PgColumn<{
++            name: "expiresAt";
++            tableName: "jwks";
++            dataType: "string";
++            columnType: "PgTimestampString";
++            data: string;
++            driverParam: string;
++            notNull: false;
++            hasDefault: false;
++            isPrimaryKey: false;
++            isAutoincrement: false;
++            hasRuntimeDefault: false;
++            enumValues: undefined;
++            baseColumn: never;
++            identity: undefined;
++            generated: undefined;
++        }, {}, {}>;
++    };
++    dialect: "pg";
++}>;
++/**
++ * Table schema of the `invitation` table used by Neon Auth.
++ *
++ * @schema neon_auth
++ * @table invitation
++ */
++export declare const invitation: import("../pg-core/index.ts").PgTableWithColumns<{
++    name: "invitation";
++    schema: "neon_auth";
++    columns: {
++        id: import("../pg-core/index.ts").PgColumn<{
++            name: "id";
++            tableName: "invitation";
++            dataType: "string";
++            columnType: "PgUUID";
++            data: string;
++            driverParam: string;
++            notNull: true;
++            hasDefault: true;
++            isPrimaryKey: true;
++            isAutoincrement: false;
++            hasRuntimeDefault: false;
++            enumValues: undefined;
++            baseColumn: never;
++            identity: undefined;
++            generated: undefined;
++        }, {}, {}>;
++        organizationId: import("../pg-core/index.ts").PgColumn<{
++            name: "organizationId";
++            tableName: "invitation";
++            dataType: "string";
++            columnType: "PgUUID";
++            data: string;
++            driverParam: string;
++            notNull: true;
++            hasDefault: false;
++            isPrimaryKey: false;
++            isAutoincrement: false;
++            hasRuntimeDefault: false;
++            enumValues: undefined;
++            baseColumn: never;
++            identity: undefined;
++            generated: undefined;
++        }, {}, {}>;
++        email: import("../pg-core/index.ts").PgColumn<{
++            name: "email";
++            tableName: "invitation";
++            dataType: "string";
++            columnType: "PgText";
++            data: string;
++            driverParam: string;
++            notNull: true;
++            hasDefault: false;
++            isPrimaryKey: false;
++            isAutoincrement: false;
++            hasRuntimeDefault: false;
++            enumValues: [string, ...string[]];
++            baseColumn: never;
++            identity: undefined;
++            generated: undefined;
++        }, {}, {}>;
++        role: import("../pg-core/index.ts").PgColumn<{
++            name: "role";
++            tableName: "invitation";
++            dataType: "string";
++            columnType: "PgText";
++            data: string;
++            driverParam: string;
++            notNull: false;
++            hasDefault: false;
++            isPrimaryKey: false;
++            isAutoincrement: false;
++            hasRuntimeDefault: false;
++            enumValues: [string, ...string[]];
++            baseColumn: never;
++            identity: undefined;
++            generated: undefined;
++        }, {}, {}>;
++        status: import("../pg-core/index.ts").PgColumn<{
++            name: "status";
++            tableName: "invitation";
++            dataType: "string";
++            columnType: "PgText";
++            data: string;
++            driverParam: string;
++            notNull: true;
++            hasDefault: false;
++            isPrimaryKey: false;
++            isAutoincrement: false;
++            hasRuntimeDefault: false;
++            enumValues: [string, ...string[]];
++            baseColumn: never;
++            identity: undefined;
++            generated: undefined;
++        }, {}, {}>;
++        expiresAt: import("../pg-core/index.ts").PgColumn<{
++            name: "expiresAt";
++            tableName: "invitation";
++            dataType: "string";
++            columnType: "PgTimestampString";
++            data: string;
++            driverParam: string;
++            notNull: true;
++            hasDefault: false;
++            isPrimaryKey: false;
++            isAutoincrement: false;
++            hasRuntimeDefault: false;
++            enumValues: undefined;
++            baseColumn: never;
++            identity: undefined;
++            generated: undefined;
++        }, {}, {}>;
++        createdAt: import("../pg-core/index.ts").PgColumn<{
++            name: "createdAt";
++            tableName: "invitation";
++            dataType: "string";
++            columnType: "PgTimestampString";
++            data: string;
++            driverParam: string;
++            notNull: true;
++            hasDefault: true;
++            isPrimaryKey: false;
++            isAutoincrement: false;
++            hasRuntimeDefault: false;
++            enumValues: undefined;
++            baseColumn: never;
++            identity: undefined;
++            generated: undefined;
++        }, {}, {}>;
++        inviterId: import("../pg-core/index.ts").PgColumn<{
++            name: "inviterId";
++            tableName: "invitation";
++            dataType: "string";
++            columnType: "PgUUID";
++            data: string;
++            driverParam: string;
++            notNull: true;
++            hasDefault: false;
++            isPrimaryKey: false;
++            isAutoincrement: false;
++            hasRuntimeDefault: false;
++            enumValues: undefined;
++            baseColumn: never;
++            identity: undefined;
++            generated: undefined;
++        }, {}, {}>;
++    };
++    dialect: "pg";
++}>;
++/**
++ * Table schema of the `account` table used by Neon Auth.
++ *
++ * @schema neon_auth
++ * @table account
++ */
++export declare const account: import("../pg-core/index.ts").PgTableWithColumns<{
++    name: "account";
++    schema: "neon_auth";
++    columns: {
++        id: import("../pg-core/index.ts").PgColumn<{
++            name: "id";
++            tableName: "account";
++            dataType: "string";
++            columnType: "PgUUID";
++            data: string;
++            driverParam: string;
++            notNull: true;
++            hasDefault: true;
++            isPrimaryKey: true;
++            isAutoincrement: false;
++            hasRuntimeDefault: false;
++            enumValues: undefined;
++            baseColumn: never;
++            identity: undefined;
++            generated: undefined;
++        }, {}, {}>;
++        accountId: import("../pg-core/index.ts").PgColumn<{
++            name: "accountId";
++            tableName: "account";
++            dataType: "string";
++            columnType: "PgText";
++            data: string;
++            driverParam: string;
++            notNull: true;
++            hasDefault: false;
++            isPrimaryKey: false;
++            isAutoincrement: false;
++            hasRuntimeDefault: false;
++            enumValues: [string, ...string[]];
++            baseColumn: never;
++            identity: undefined;
++            generated: undefined;
++        }, {}, {}>;
++        providerId: import("../pg-core/index.ts").PgColumn<{
++            name: "providerId";
++            tableName: "account";
++            dataType: "string";
++            columnType: "PgText";
++            data: string;
++            driverParam: string;
++            notNull: true;
++            hasDefault: false;
++            isPrimaryKey: false;
++            isAutoincrement: false;
++            hasRuntimeDefault: false;
++            enumValues: [string, ...string[]];
++            baseColumn: never;
++            identity: undefined;
++            generated: undefined;
++        }, {}, {}>;
++        userId: import("../pg-core/index.ts").PgColumn<{
++            name: "userId";
++            tableName: "account";
++            dataType: "string";
++            columnType: "PgUUID";
++            data: string;
++            driverParam: string;
++            notNull: true;
++            hasDefault: false;
++            isPrimaryKey: false;
++            isAutoincrement: false;
++            hasRuntimeDefault: false;
++            enumValues: undefined;
++            baseColumn: never;
++            identity: undefined;
++            generated: undefined;
++        }, {}, {}>;
++        accessToken: import("../pg-core/index.ts").PgColumn<{
++            name: "accessToken";
++            tableName: "account";
++            dataType: "string";
++            columnType: "PgText";
++            data: string;
++            driverParam: string;
++            notNull: false;
++            hasDefault: false;
++            isPrimaryKey: false;
++            isAutoincrement: false;
++            hasRuntimeDefault: false;
++            enumValues: [string, ...string[]];
++            baseColumn: never;
++            identity: undefined;
++            generated: undefined;
++        }, {}, {}>;
++        refreshToken: import("../pg-core/index.ts").PgColumn<{
++            name: "refreshToken";
++            tableName: "account";
++            dataType: "string";
++            columnType: "PgText";
++            data: string;
++            driverParam: string;
++            notNull: false;
++            hasDefault: false;
++            isPrimaryKey: false;
++            isAutoincrement: false;
++            hasRuntimeDefault: false;
++            enumValues: [string, ...string[]];
++            baseColumn: never;
++            identity: undefined;
++            generated: undefined;
++        }, {}, {}>;
++        idToken: import("../pg-core/index.ts").PgColumn<{
++            name: "idToken";
++            tableName: "account";
++            dataType: "string";
++            columnType: "PgText";
++            data: string;
++            driverParam: string;
++            notNull: false;
++            hasDefault: false;
++            isPrimaryKey: false;
++            isAutoincrement: false;
++            hasRuntimeDefault: false;
++            enumValues: [string, ...string[]];
++            baseColumn: never;
++            identity: undefined;
++            generated: undefined;
++        }, {}, {}>;
++        accessTokenExpiresAt: import("../pg-core/index.ts").PgColumn<{
++            name: "accessTokenExpiresAt";
++            tableName: "account";
++            dataType: "string";
++            columnType: "PgTimestampString";
++            data: string;
++            driverParam: string;
++            notNull: false;
++            hasDefault: false;
++            isPrimaryKey: false;
++            isAutoincrement: false;
++            hasRuntimeDefault: false;
++            enumValues: undefined;
++            baseColumn: never;
++            identity: undefined;
++            generated: undefined;
++        }, {}, {}>;
++        refreshTokenExpiresAt: import("../pg-core/index.ts").PgColumn<{
++            name: "refreshTokenExpiresAt";
++            tableName: "account";
++            dataType: "string";
++            columnType: "PgTimestampString";
++            data: string;
++            driverParam: string;
++            notNull: false;
++            hasDefault: false;
++            isPrimaryKey: false;
++            isAutoincrement: false;
++            hasRuntimeDefault: false;
++            enumValues: undefined;
++            baseColumn: never;
++            identity: undefined;
++            generated: undefined;
++        }, {}, {}>;
++        scope: import("../pg-core/index.ts").PgColumn<{
++            name: "scope";
++            tableName: "account";
++            dataType: "string";
++            columnType: "PgText";
++            data: string;
++            driverParam: string;
++            notNull: false;
++            hasDefault: false;
++            isPrimaryKey: false;
++            isAutoincrement: false;
++            hasRuntimeDefault: false;
++            enumValues: [string, ...string[]];
++            baseColumn: never;
++            identity: undefined;
++            generated: undefined;
++        }, {}, {}>;
++        password: import("../pg-core/index.ts").PgColumn<{
++            name: "password";
++            tableName: "account";
++            dataType: "string";
++            columnType: "PgText";
++            data: string;
++            driverParam: string;
++            notNull: false;
++            hasDefault: false;
++            isPrimaryKey: false;
++            isAutoincrement: false;
++            hasRuntimeDefault: false;
++            enumValues: [string, ...string[]];
++            baseColumn: never;
++            identity: undefined;
++            generated: undefined;
++        }, {}, {}>;
++        createdAt: import("../pg-core/index.ts").PgColumn<{
++            name: "createdAt";
++            tableName: "account";
++            dataType: "string";
++            columnType: "PgTimestampString";
++            data: string;
++            driverParam: string;
++            notNull: true;
++            hasDefault: true;
++            isPrimaryKey: false;
++            isAutoincrement: false;
++            hasRuntimeDefault: false;
++            enumValues: undefined;
++            baseColumn: never;
++            identity: undefined;
++            generated: undefined;
++        }, {}, {}>;
++        updatedAt: import("../pg-core/index.ts").PgColumn<{
++            name: "updatedAt";
++            tableName: "account";
++            dataType: "string";
++            columnType: "PgTimestampString";
++            data: string;
++            driverParam: string;
++            notNull: true;
++            hasDefault: false;
++            isPrimaryKey: false;
++            isAutoincrement: false;
++            hasRuntimeDefault: false;
++            enumValues: undefined;
++            baseColumn: never;
++            identity: undefined;
++            generated: undefined;
++        }, {}, {}>;
++    };
++    dialect: "pg";
++}>;
+diff --git a/node_modules/drizzle-orm/neon/neon-auth.d.ts b/node_modules/drizzle-orm/neon/neon-auth.d.ts
+index a4ba406..d22b84a 100644
+--- a/node_modules/drizzle-orm/neon/neon-auth.d.ts
++++ b/node_modules/drizzle-orm/neon/neon-auth.d.ts
+@@ -1,6 +1,7 @@
+ /**
+- * Table schema of the `users_sync` table used by Neon Auth.
+- * This table automatically synchronizes and stores user data from external authentication providers.
++ * Table schema of the `users_sync` table used by Neon Auth. This is legacy, for new projects, use the
++ * `neon_auth.user` table instead.  This table automatically synchronizes and stores user data from
++ * external authentication providers.
+  *
+  * @schema neon_auth
+  * @table users_sync
+@@ -131,3 +132,1412 @@ export declare const usersSync: import("../pg-core/index.js").PgTableWithColumns
+     };
+     dialect: "pg";
+ }>;
++/**
++ * Table schema of the `user` table used by Neon Auth.
++ *
++ * @schema neon_auth
++ * @table user
++ */
++export declare const users: import("../pg-core/index.js").PgTableWithColumns<{
++    name: "user";
++    schema: "neon_auth";
++    columns: {
++        id: import("../pg-core/index.js").PgColumn<{
++            name: "id";
++            tableName: "user";
++            dataType: "string";
++            columnType: "PgUUID";
++            data: string;
++            driverParam: string;
++            notNull: true;
++            hasDefault: true;
++            isPrimaryKey: true;
++            isAutoincrement: false;
++            hasRuntimeDefault: false;
++            enumValues: undefined;
++            baseColumn: never;
++            identity: undefined;
++            generated: undefined;
++        }, {}, {}>;
++        name: import("../pg-core/index.js").PgColumn<{
++            name: "name";
++            tableName: "user";
++            dataType: "string";
++            columnType: "PgText";
++            data: string;
++            driverParam: string;
++            notNull: true;
++            hasDefault: false;
++            isPrimaryKey: false;
++            isAutoincrement: false;
++            hasRuntimeDefault: false;
++            enumValues: [string, ...string[]];
++            baseColumn: never;
++            identity: undefined;
++            generated: undefined;
++        }, {}, {}>;
++        email: import("../pg-core/index.js").PgColumn<{
++            name: "email";
++            tableName: "user";
++            dataType: "string";
++            columnType: "PgText";
++            data: string;
++            driverParam: string;
++            notNull: true;
++            hasDefault: false;
++            isPrimaryKey: false;
++            isAutoincrement: false;
++            hasRuntimeDefault: false;
++            enumValues: [string, ...string[]];
++            baseColumn: never;
++            identity: undefined;
++            generated: undefined;
++        }, {}, {}>;
++        emailVerified: import("../pg-core/index.js").PgColumn<{
++            name: "emailVerified";
++            tableName: "user";
++            dataType: "boolean";
++            columnType: "PgBoolean";
++            data: boolean;
++            driverParam: boolean;
++            notNull: true;
++            hasDefault: false;
++            isPrimaryKey: false;
++            isAutoincrement: false;
++            hasRuntimeDefault: false;
++            enumValues: undefined;
++            baseColumn: never;
++            identity: undefined;
++            generated: undefined;
++        }, {}, {}>;
++        image: import("../pg-core/index.js").PgColumn<{
++            name: "image";
++            tableName: "user";
++            dataType: "string";
++            columnType: "PgText";
++            data: string;
++            driverParam: string;
++            notNull: false;
++            hasDefault: false;
++            isPrimaryKey: false;
++            isAutoincrement: false;
++            hasRuntimeDefault: false;
++            enumValues: [string, ...string[]];
++            baseColumn: never;
++            identity: undefined;
++            generated: undefined;
++        }, {}, {}>;
++        createdAt: import("../pg-core/index.js").PgColumn<{
++            name: "createdAt";
++            tableName: "user";
++            dataType: "string";
++            columnType: "PgTimestampString";
++            data: string;
++            driverParam: string;
++            notNull: true;
++            hasDefault: true;
++            isPrimaryKey: false;
++            isAutoincrement: false;
++            hasRuntimeDefault: false;
++            enumValues: undefined;
++            baseColumn: never;
++            identity: undefined;
++            generated: undefined;
++        }, {}, {}>;
++        updatedAt: import("../pg-core/index.js").PgColumn<{
++            name: "updatedAt";
++            tableName: "user";
++            dataType: "string";
++            columnType: "PgTimestampString";
++            data: string;
++            driverParam: string;
++            notNull: true;
++            hasDefault: true;
++            isPrimaryKey: false;
++            isAutoincrement: false;
++            hasRuntimeDefault: false;
++            enumValues: undefined;
++            baseColumn: never;
++            identity: undefined;
++            generated: undefined;
++        }, {}, {}>;
++        role: import("../pg-core/index.js").PgColumn<{
++            name: "role";
++            tableName: "user";
++            dataType: "string";
++            columnType: "PgText";
++            data: string;
++            driverParam: string;
++            notNull: false;
++            hasDefault: false;
++            isPrimaryKey: false;
++            isAutoincrement: false;
++            hasRuntimeDefault: false;
++            enumValues: [string, ...string[]];
++            baseColumn: never;
++            identity: undefined;
++            generated: undefined;
++        }, {}, {}>;
++        banned: import("../pg-core/index.js").PgColumn<{
++            name: "banned";
++            tableName: "user";
++            dataType: "boolean";
++            columnType: "PgBoolean";
++            data: boolean;
++            driverParam: boolean;
++            notNull: false;
++            hasDefault: false;
++            isPrimaryKey: false;
++            isAutoincrement: false;
++            hasRuntimeDefault: false;
++            enumValues: undefined;
++            baseColumn: never;
++            identity: undefined;
++            generated: undefined;
++        }, {}, {}>;
++        banReason: import("../pg-core/index.js").PgColumn<{
++            name: "banReason";
++            tableName: "user";
++            dataType: "string";
++            columnType: "PgText";
++            data: string;
++            driverParam: string;
++            notNull: false;
++            hasDefault: false;
++            isPrimaryKey: false;
++            isAutoincrement: false;
++            hasRuntimeDefault: false;
++            enumValues: [string, ...string[]];
++            baseColumn: never;
++            identity: undefined;
++            generated: undefined;
++        }, {}, {}>;
++        banExpires: import("../pg-core/index.js").PgColumn<{
++            name: "banExpires";
++            tableName: "user";
++            dataType: "string";
++            columnType: "PgTimestampString";
++            data: string;
++            driverParam: string;
++            notNull: false;
++            hasDefault: false;
++            isPrimaryKey: false;
++            isAutoincrement: false;
++            hasRuntimeDefault: false;
++            enumValues: undefined;
++            baseColumn: never;
++            identity: undefined;
++            generated: undefined;
++        }, {}, {}>;
++    };
++    dialect: "pg";
++}>;
++/**
++ * Table schema of the `verification` table used by Neon Auth.
++ *
++ * @schema neon_auth
++ * @table verification
++ */
++export declare const verification: import("../pg-core/index.js").PgTableWithColumns<{
++    name: "verification";
++    schema: "neon_auth";
++    columns: {
++        id: import("../pg-core/index.js").PgColumn<{
++            name: "id";
++            tableName: "verification";
++            dataType: "string";
++            columnType: "PgUUID";
++            data: string;
++            driverParam: string;
++            notNull: true;
++            hasDefault: true;
++            isPrimaryKey: true;
++            isAutoincrement: false;
++            hasRuntimeDefault: false;
++            enumValues: undefined;
++            baseColumn: never;
++            identity: undefined;
++            generated: undefined;
++        }, {}, {}>;
++        identifier: import("../pg-core/index.js").PgColumn<{
++            name: "identifier";
++            tableName: "verification";
++            dataType: "string";
++            columnType: "PgText";
++            data: string;
++            driverParam: string;
++            notNull: true;
++            hasDefault: false;
++            isPrimaryKey: false;
++            isAutoincrement: false;
++            hasRuntimeDefault: false;
++            enumValues: [string, ...string[]];
++            baseColumn: never;
++            identity: undefined;
++            generated: undefined;
++        }, {}, {}>;
++        value: import("../pg-core/index.js").PgColumn<{
++            name: "value";
++            tableName: "verification";
++            dataType: "string";
++            columnType: "PgText";
++            data: string;
++            driverParam: string;
++            notNull: true;
++            hasDefault: false;
++            isPrimaryKey: false;
++            isAutoincrement: false;
++            hasRuntimeDefault: false;
++            enumValues: [string, ...string[]];
++            baseColumn: never;
++            identity: undefined;
++            generated: undefined;
++        }, {}, {}>;
++        expiresAt: import("../pg-core/index.js").PgColumn<{
++            name: "expiresAt";
++            tableName: "verification";
++            dataType: "string";
++            columnType: "PgTimestampString";
++            data: string;
++            driverParam: string;
++            notNull: true;
++            hasDefault: false;
++            isPrimaryKey: false;
++            isAutoincrement: false;
++            hasRuntimeDefault: false;
++            enumValues: undefined;
++            baseColumn: never;
++            identity: undefined;
++            generated: undefined;
++        }, {}, {}>;
++        createdAt: import("../pg-core/index.js").PgColumn<{
++            name: "createdAt";
++            tableName: "verification";
++            dataType: "string";
++            columnType: "PgTimestampString";
++            data: string;
++            driverParam: string;
++            notNull: true;
++            hasDefault: true;
++            isPrimaryKey: false;
++            isAutoincrement: false;
++            hasRuntimeDefault: false;
++            enumValues: undefined;
++            baseColumn: never;
++            identity: undefined;
++            generated: undefined;
++        }, {}, {}>;
++        updatedAt: import("../pg-core/index.js").PgColumn<{
++            name: "updatedAt";
++            tableName: "verification";
++            dataType: "string";
++            columnType: "PgTimestampString";
++            data: string;
++            driverParam: string;
++            notNull: true;
++            hasDefault: true;
++            isPrimaryKey: false;
++            isAutoincrement: false;
++            hasRuntimeDefault: false;
++            enumValues: undefined;
++            baseColumn: never;
++            identity: undefined;
++            generated: undefined;
++        }, {}, {}>;
++    };
++    dialect: "pg";
++}>;
++/**
++ * Table schema of the `session` table used by Neon Auth.
++ *
++ * @schema neon_auth
++ * @table session
++ */
++export declare const session: import("../pg-core/index.js").PgTableWithColumns<{
++    name: "session";
++    schema: "neon_auth";
++    columns: {
++        id: import("../pg-core/index.js").PgColumn<{
++            name: "id";
++            tableName: "session";
++            dataType: "string";
++            columnType: "PgUUID";
++            data: string;
++            driverParam: string;
++            notNull: true;
++            hasDefault: true;
++            isPrimaryKey: true;
++            isAutoincrement: false;
++            hasRuntimeDefault: false;
++            enumValues: undefined;
++            baseColumn: never;
++            identity: undefined;
++            generated: undefined;
++        }, {}, {}>;
++        expiresAt: import("../pg-core/index.js").PgColumn<{
++            name: "expiresAt";
++            tableName: "session";
++            dataType: "string";
++            columnType: "PgTimestampString";
++            data: string;
++            driverParam: string;
++            notNull: true;
++            hasDefault: false;
++            isPrimaryKey: false;
++            isAutoincrement: false;
++            hasRuntimeDefault: false;
++            enumValues: undefined;
++            baseColumn: never;
++            identity: undefined;
++            generated: undefined;
++        }, {}, {}>;
++        token: import("../pg-core/index.js").PgColumn<{
++            name: "token";
++            tableName: "session";
++            dataType: "string";
++            columnType: "PgText";
++            data: string;
++            driverParam: string;
++            notNull: true;
++            hasDefault: false;
++            isPrimaryKey: false;
++            isAutoincrement: false;
++            hasRuntimeDefault: false;
++            enumValues: [string, ...string[]];
++            baseColumn: never;
++            identity: undefined;
++            generated: undefined;
++        }, {}, {}>;
++        createdAt: import("../pg-core/index.js").PgColumn<{
++            name: "createdAt";
++            tableName: "session";
++            dataType: "string";
++            columnType: "PgTimestampString";
++            data: string;
++            driverParam: string;
++            notNull: true;
++            hasDefault: true;
++            isPrimaryKey: false;
++            isAutoincrement: false;
++            hasRuntimeDefault: false;
++            enumValues: undefined;
++            baseColumn: never;
++            identity: undefined;
++            generated: undefined;
++        }, {}, {}>;
++        updatedAt: import("../pg-core/index.js").PgColumn<{
++            name: "updatedAt";
++            tableName: "session";
++            dataType: "string";
++            columnType: "PgTimestampString";
++            data: string;
++            driverParam: string;
++            notNull: true;
++            hasDefault: false;
++            isPrimaryKey: false;
++            isAutoincrement: false;
++            hasRuntimeDefault: false;
++            enumValues: undefined;
++            baseColumn: never;
++            identity: undefined;
++            generated: undefined;
++        }, {}, {}>;
++        ipAddress: import("../pg-core/index.js").PgColumn<{
++            name: "ipAddress";
++            tableName: "session";
++            dataType: "string";
++            columnType: "PgText";
++            data: string;
++            driverParam: string;
++            notNull: false;
++            hasDefault: false;
++            isPrimaryKey: false;
++            isAutoincrement: false;
++            hasRuntimeDefault: false;
++            enumValues: [string, ...string[]];
++            baseColumn: never;
++            identity: undefined;
++            generated: undefined;
++        }, {}, {}>;
++        userAgent: import("../pg-core/index.js").PgColumn<{
++            name: "userAgent";
++            tableName: "session";
++            dataType: "string";
++            columnType: "PgText";
++            data: string;
++            driverParam: string;
++            notNull: false;
++            hasDefault: false;
++            isPrimaryKey: false;
++            isAutoincrement: false;
++            hasRuntimeDefault: false;
++            enumValues: [string, ...string[]];
++            baseColumn: never;
++            identity: undefined;
++            generated: undefined;
++        }, {}, {}>;
++        userId: import("../pg-core/index.js").PgColumn<{
++            name: "userId";
++            tableName: "session";
++            dataType: "string";
++            columnType: "PgUUID";
++            data: string;
++            driverParam: string;
++            notNull: true;
++            hasDefault: false;
++            isPrimaryKey: false;
++            isAutoincrement: false;
++            hasRuntimeDefault: false;
++            enumValues: undefined;
++            baseColumn: never;
++            identity: undefined;
++            generated: undefined;
++        }, {}, {}>;
++        impersonatedBy: import("../pg-core/index.js").PgColumn<{
++            name: "impersonatedBy";
++            tableName: "session";
++            dataType: "string";
++            columnType: "PgText";
++            data: string;
++            driverParam: string;
++            notNull: false;
++            hasDefault: false;
++            isPrimaryKey: false;
++            isAutoincrement: false;
++            hasRuntimeDefault: false;
++            enumValues: [string, ...string[]];
++            baseColumn: never;
++            identity: undefined;
++            generated: undefined;
++        }, {}, {}>;
++        activeOrganizationId: import("../pg-core/index.js").PgColumn<{
++            name: "activeOrganizationId";
++            tableName: "session";
++            dataType: "string";
++            columnType: "PgText";
++            data: string;
++            driverParam: string;
++            notNull: false;
++            hasDefault: false;
++            isPrimaryKey: false;
++            isAutoincrement: false;
++            hasRuntimeDefault: false;
++            enumValues: [string, ...string[]];
++            baseColumn: never;
++            identity: undefined;
++            generated: undefined;
++        }, {}, {}>;
++    };
++    dialect: "pg";
++}>;
++/**
++ * Table schema of the `project_config` table used by Neon Auth.
++ *
++ * @schema neon_auth
++ * @table project_config
++ */
++export declare const projectConfig: import("../pg-core/index.js").PgTableWithColumns<{
++    name: "project_config";
++    schema: "neon_auth";
++    columns: {
++        id: import("../pg-core/index.js").PgColumn<{
++            name: "id";
++            tableName: "project_config";
++            dataType: "string";
++            columnType: "PgUUID";
++            data: string;
++            driverParam: string;
++            notNull: true;
++            hasDefault: true;
++            isPrimaryKey: true;
++            isAutoincrement: false;
++            hasRuntimeDefault: false;
++            enumValues: undefined;
++            baseColumn: never;
++            identity: undefined;
++            generated: undefined;
++        }, {}, {}>;
++        name: import("../pg-core/index.js").PgColumn<{
++            name: "name";
++            tableName: "project_config";
++            dataType: "string";
++            columnType: "PgText";
++            data: string;
++            driverParam: string;
++            notNull: true;
++            hasDefault: false;
++            isPrimaryKey: false;
++            isAutoincrement: false;
++            hasRuntimeDefault: false;
++            enumValues: [string, ...string[]];
++            baseColumn: never;
++            identity: undefined;
++            generated: undefined;
++        }, {}, {}>;
++        endpointId: import("../pg-core/index.js").PgColumn<{
++            name: "endpoint_id";
++            tableName: "project_config";
++            dataType: "string";
++            columnType: "PgText";
++            data: string;
++            driverParam: string;
++            notNull: true;
++            hasDefault: false;
++            isPrimaryKey: false;
++            isAutoincrement: false;
++            hasRuntimeDefault: false;
++            enumValues: [string, ...string[]];
++            baseColumn: never;
++            identity: undefined;
++            generated: undefined;
++        }, {}, {}>;
++        createdAt: import("../pg-core/index.js").PgColumn<{
++            name: "created_at";
++            tableName: "project_config";
++            dataType: "string";
++            columnType: "PgTimestampString";
++            data: string;
++            driverParam: string;
++            notNull: true;
++            hasDefault: true;
++            isPrimaryKey: false;
++            isAutoincrement: false;
++            hasRuntimeDefault: false;
++            enumValues: undefined;
++            baseColumn: never;
++            identity: undefined;
++            generated: undefined;
++        }, {}, {}>;
++        updatedAt: import("../pg-core/index.js").PgColumn<{
++            name: "updated_at";
++            tableName: "project_config";
++            dataType: "string";
++            columnType: "PgTimestampString";
++            data: string;
++            driverParam: string;
++            notNull: true;
++            hasDefault: true;
++            isPrimaryKey: false;
++            isAutoincrement: false;
++            hasRuntimeDefault: false;
++            enumValues: undefined;
++            baseColumn: never;
++            identity: undefined;
++            generated: undefined;
++        }, {}, {}>;
++        trustedOrigins: import("../pg-core/index.js").PgColumn<{
++            name: "trusted_origins";
++            tableName: "project_config";
++            dataType: "json";
++            columnType: "PgJsonb";
++            data: unknown;
++            driverParam: unknown;
++            notNull: true;
++            hasDefault: false;
++            isPrimaryKey: false;
++            isAutoincrement: false;
++            hasRuntimeDefault: false;
++            enumValues: undefined;
++            baseColumn: never;
++            identity: undefined;
++            generated: undefined;
++        }, {}, {}>;
++        socialProviders: import("../pg-core/index.js").PgColumn<{
++            name: "social_providers";
++            tableName: "project_config";
++            dataType: "json";
++            columnType: "PgJsonb";
++            data: unknown;
++            driverParam: unknown;
++            notNull: true;
++            hasDefault: false;
++            isPrimaryKey: false;
++            isAutoincrement: false;
++            hasRuntimeDefault: false;
++            enumValues: undefined;
++            baseColumn: never;
++            identity: undefined;
++            generated: undefined;
++        }, {}, {}>;
++        emailProvider: import("../pg-core/index.js").PgColumn<{
++            name: "email_provider";
++            tableName: "project_config";
++            dataType: "json";
++            columnType: "PgJsonb";
++            data: unknown;
++            driverParam: unknown;
++            notNull: false;
++            hasDefault: false;
++            isPrimaryKey: false;
++            isAutoincrement: false;
++            hasRuntimeDefault: false;
++            enumValues: undefined;
++            baseColumn: never;
++            identity: undefined;
++            generated: undefined;
++        }, {}, {}>;
++        emailAndPassword: import("../pg-core/index.js").PgColumn<{
++            name: "email_and_password";
++            tableName: "project_config";
++            dataType: "json";
++            columnType: "PgJsonb";
++            data: unknown;
++            driverParam: unknown;
++            notNull: false;
++            hasDefault: false;
++            isPrimaryKey: false;
++            isAutoincrement: false;
++            hasRuntimeDefault: false;
++            enumValues: undefined;
++            baseColumn: never;
++            identity: undefined;
++            generated: undefined;
++        }, {}, {}>;
++        allowLocalhost: import("../pg-core/index.js").PgColumn<{
++            name: "allow_localhost";
++            tableName: "project_config";
++            dataType: "boolean";
++            columnType: "PgBoolean";
++            data: boolean;
++            driverParam: boolean;
++            notNull: true;
++            hasDefault: false;
++            isPrimaryKey: false;
++            isAutoincrement: false;
++            hasRuntimeDefault: false;
++            enumValues: undefined;
++            baseColumn: never;
++            identity: undefined;
++            generated: undefined;
++        }, {}, {}>;
++        pluginConfigs: import("../pg-core/index.js").PgColumn<{
++            name: "plugin_configs";
++            tableName: "project_config";
++            dataType: "json";
++            columnType: "PgJsonb";
++            data: unknown;
++            driverParam: unknown;
++            notNull: false;
++            hasDefault: false;
++            isPrimaryKey: false;
++            isAutoincrement: false;
++            hasRuntimeDefault: false;
++            enumValues: undefined;
++            baseColumn: never;
++            identity: undefined;
++            generated: undefined;
++        }, {}, {}>;
++        webhookConfig: import("../pg-core/index.js").PgColumn<{
++            name: "webhook_config";
++            tableName: "project_config";
++            dataType: "json";
++            columnType: "PgJsonb";
++            data: unknown;
++            driverParam: unknown;
++            notNull: false;
++            hasDefault: false;
++            isPrimaryKey: false;
++            isAutoincrement: false;
++            hasRuntimeDefault: false;
++            enumValues: undefined;
++            baseColumn: never;
++            identity: undefined;
++            generated: undefined;
++        }, {}, {}>;
++    };
++    dialect: "pg";
++}>;
++/**
++ * Table schema of the `organization` table used by Neon Auth.
++ *
++ * @schema neon_auth
++ * @table organization
++ */
++export declare const organization: import("../pg-core/index.js").PgTableWithColumns<{
++    name: "organization";
++    schema: "neon_auth";
++    columns: {
++        id: import("../pg-core/index.js").PgColumn<{
++            name: "id";
++            tableName: "organization";
++            dataType: "string";
++            columnType: "PgUUID";
++            data: string;
++            driverParam: string;
++            notNull: true;
++            hasDefault: true;
++            isPrimaryKey: true;
++            isAutoincrement: false;
++            hasRuntimeDefault: false;
++            enumValues: undefined;
++            baseColumn: never;
++            identity: undefined;
++            generated: undefined;
++        }, {}, {}>;
++        name: import("../pg-core/index.js").PgColumn<{
++            name: "name";
++            tableName: "organization";
++            dataType: "string";
++            columnType: "PgText";
++            data: string;
++            driverParam: string;
++            notNull: true;
++            hasDefault: false;
++            isPrimaryKey: false;
++            isAutoincrement: false;
++            hasRuntimeDefault: false;
++            enumValues: [string, ...string[]];
++            baseColumn: never;
++            identity: undefined;
++            generated: undefined;
++        }, {}, {}>;
++        slug: import("../pg-core/index.js").PgColumn<{
++            name: "slug";
++            tableName: "organization";
++            dataType: "string";
++            columnType: "PgText";
++            data: string;
++            driverParam: string;
++            notNull: true;
++            hasDefault: false;
++            isPrimaryKey: false;
++            isAutoincrement: false;
++            hasRuntimeDefault: false;
++            enumValues: [string, ...string[]];
++            baseColumn: never;
++            identity: undefined;
++            generated: undefined;
++        }, {}, {}>;
++        logo: import("../pg-core/index.js").PgColumn<{
++            name: "logo";
++            tableName: "organization";
++            dataType: "string";
++            columnType: "PgText";
++            data: string;
++            driverParam: string;
++            notNull: false;
++            hasDefault: false;
++            isPrimaryKey: false;
++            isAutoincrement: false;
++            hasRuntimeDefault: false;
++            enumValues: [string, ...string[]];
++            baseColumn: never;
++            identity: undefined;
++            generated: undefined;
++        }, {}, {}>;
++        createdAt: import("../pg-core/index.js").PgColumn<{
++            name: "createdAt";
++            tableName: "organization";
++            dataType: "string";
++            columnType: "PgTimestampString";
++            data: string;
++            driverParam: string;
++            notNull: true;
++            hasDefault: false;
++            isPrimaryKey: false;
++            isAutoincrement: false;
++            hasRuntimeDefault: false;
++            enumValues: undefined;
++            baseColumn: never;
++            identity: undefined;
++            generated: undefined;
++        }, {}, {}>;
++        metadata: import("../pg-core/index.js").PgColumn<{
++            name: "metadata";
++            tableName: "organization";
++            dataType: "string";
++            columnType: "PgText";
++            data: string;
++            driverParam: string;
++            notNull: false;
++            hasDefault: false;
++            isPrimaryKey: false;
++            isAutoincrement: false;
++            hasRuntimeDefault: false;
++            enumValues: [string, ...string[]];
++            baseColumn: never;
++            identity: undefined;
++            generated: undefined;
++        }, {}, {}>;
++    };
++    dialect: "pg";
++}>;
++/**
++ * Table schema of the `member` table used by Neon Auth.
++ *
++ * @schema neon_auth
++ * @table member
++ */
++export declare const member: import("../pg-core/index.js").PgTableWithColumns<{
++    name: "member";
++    schema: "neon_auth";
++    columns: {
++        id: import("../pg-core/index.js").PgColumn<{
++            name: "id";
++            tableName: "member";
++            dataType: "string";
++            columnType: "PgUUID";
++            data: string;
++            driverParam: string;
++            notNull: true;
++            hasDefault: true;
++            isPrimaryKey: true;
++            isAutoincrement: false;
++            hasRuntimeDefault: false;
++            enumValues: undefined;
++            baseColumn: never;
++            identity: undefined;
++            generated: undefined;
++        }, {}, {}>;
++        organizationId: import("../pg-core/index.js").PgColumn<{
++            name: "organizationId";
++            tableName: "member";
++            dataType: "string";
++            columnType: "PgUUID";
++            data: string;
++            driverParam: string;
++            notNull: true;
++            hasDefault: false;
++            isPrimaryKey: false;
++            isAutoincrement: false;
++            hasRuntimeDefault: false;
++            enumValues: undefined;
++            baseColumn: never;
++            identity: undefined;
++            generated: undefined;
++        }, {}, {}>;
++        userId: import("../pg-core/index.js").PgColumn<{
++            name: "userId";
++            tableName: "member";
++            dataType: "string";
++            columnType: "PgUUID";
++            data: string;
++            driverParam: string;
++            notNull: true;
++            hasDefault: false;
++            isPrimaryKey: false;
++            isAutoincrement: false;
++            hasRuntimeDefault: false;
++            enumValues: undefined;
++            baseColumn: never;
++            identity: undefined;
++            generated: undefined;
++        }, {}, {}>;
++        role: import("../pg-core/index.js").PgColumn<{
++            name: "role";
++            tableName: "member";
++            dataType: "string";
++            columnType: "PgText";
++            data: string;
++            driverParam: string;
++            notNull: true;
++            hasDefault: false;
++            isPrimaryKey: false;
++            isAutoincrement: false;
++            hasRuntimeDefault: false;
++            enumValues: [string, ...string[]];
++            baseColumn: never;
++            identity: undefined;
++            generated: undefined;
++        }, {}, {}>;
++        createdAt: import("../pg-core/index.js").PgColumn<{
++            name: "createdAt";
++            tableName: "member";
++            dataType: "string";
++            columnType: "PgTimestampString";
++            data: string;
++            driverParam: string;
++            notNull: true;
++            hasDefault: false;
++            isPrimaryKey: false;
++            isAutoincrement: false;
++            hasRuntimeDefault: false;
++            enumValues: undefined;
++            baseColumn: never;
++            identity: undefined;
++            generated: undefined;
++        }, {}, {}>;
++    };
++    dialect: "pg";
++}>;
++/**
++ * Table schema of the `jwks` table used by Neon Auth.
++ *
++ * @schema neon_auth
++ * @table jwks
++ */
++export declare const jwks: import("../pg-core/index.js").PgTableWithColumns<{
++    name: "jwks";
++    schema: "neon_auth";
++    columns: {
++        id: import("../pg-core/index.js").PgColumn<{
++            name: "id";
++            tableName: "jwks";
++            dataType: "string";
++            columnType: "PgUUID";
++            data: string;
++            driverParam: string;
++            notNull: true;
++            hasDefault: true;
++            isPrimaryKey: true;
++            isAutoincrement: false;
++            hasRuntimeDefault: false;
++            enumValues: undefined;
++            baseColumn: never;
++            identity: undefined;
++            generated: undefined;
++        }, {}, {}>;
++        publicKey: import("../pg-core/index.js").PgColumn<{
++            name: "publicKey";
++            tableName: "jwks";
++            dataType: "string";
++            columnType: "PgText";
++            data: string;
++            driverParam: string;
++            notNull: true;
++            hasDefault: false;
++            isPrimaryKey: false;
++            isAutoincrement: false;
++            hasRuntimeDefault: false;
++            enumValues: [string, ...string[]];
++            baseColumn: never;
++            identity: undefined;
++            generated: undefined;
++        }, {}, {}>;
++        privateKey: import("../pg-core/index.js").PgColumn<{
++            name: "privateKey";
++            tableName: "jwks";
++            dataType: "string";
++            columnType: "PgText";
++            data: string;
++            driverParam: string;
++            notNull: true;
++            hasDefault: false;
++            isPrimaryKey: false;
++            isAutoincrement: false;
++            hasRuntimeDefault: false;
++            enumValues: [string, ...string[]];
++            baseColumn: never;
++            identity: undefined;
++            generated: undefined;
++        }, {}, {}>;
++        createdAt: import("../pg-core/index.js").PgColumn<{
++            name: "createdAt";
++            tableName: "jwks";
++            dataType: "string";
++            columnType: "PgTimestampString";
++            data: string;
++            driverParam: string;
++            notNull: true;
++            hasDefault: false;
++            isPrimaryKey: false;
++            isAutoincrement: false;
++            hasRuntimeDefault: false;
++            enumValues: undefined;
++            baseColumn: never;
++            identity: undefined;
++            generated: undefined;
++        }, {}, {}>;
++        expiresAt: import("../pg-core/index.js").PgColumn<{
++            name: "expiresAt";
++            tableName: "jwks";
++            dataType: "string";
++            columnType: "PgTimestampString";
++            data: string;
++            driverParam: string;
++            notNull: false;
++            hasDefault: false;
++            isPrimaryKey: false;
++            isAutoincrement: false;
++            hasRuntimeDefault: false;
++            enumValues: undefined;
++            baseColumn: never;
++            identity: undefined;
++            generated: undefined;
++        }, {}, {}>;
++    };
++    dialect: "pg";
++}>;
++/**
++ * Table schema of the `invitation` table used by Neon Auth.
++ *
++ * @schema neon_auth
++ * @table invitation
++ */
++export declare const invitation: import("../pg-core/index.js").PgTableWithColumns<{
++    name: "invitation";
++    schema: "neon_auth";
++    columns: {
++        id: import("../pg-core/index.js").PgColumn<{
++            name: "id";
++            tableName: "invitation";
++            dataType: "string";
++            columnType: "PgUUID";
++            data: string;
++            driverParam: string;
++            notNull: true;
++            hasDefault: true;
++            isPrimaryKey: true;
++            isAutoincrement: false;
++            hasRuntimeDefault: false;
++            enumValues: undefined;
++            baseColumn: never;
++            identity: undefined;
++            generated: undefined;
++        }, {}, {}>;
++        organizationId: import("../pg-core/index.js").PgColumn<{
++            name: "organizationId";
++            tableName: "invitation";
++            dataType: "string";
++            columnType: "PgUUID";
++            data: string;
++            driverParam: string;
++            notNull: true;
++            hasDefault: false;
++            isPrimaryKey: false;
++            isAutoincrement: false;
++            hasRuntimeDefault: false;
++            enumValues: undefined;
++            baseColumn: never;
++            identity: undefined;
++            generated: undefined;
++        }, {}, {}>;
++        email: import("../pg-core/index.js").PgColumn<{
++            name: "email";
++            tableName: "invitation";
++            dataType: "string";
++            columnType: "PgText";
++            data: string;
++            driverParam: string;
++            notNull: true;
++            hasDefault: false;
++            isPrimaryKey: false;
++            isAutoincrement: false;
++            hasRuntimeDefault: false;
++            enumValues: [string, ...string[]];
++            baseColumn: never;
++            identity: undefined;
++            generated: undefined;
++        }, {}, {}>;
++        role: import("../pg-core/index.js").PgColumn<{
++            name: "role";
++            tableName: "invitation";
++            dataType: "string";
++            columnType: "PgText";
++            data: string;
++            driverParam: string;
++            notNull: false;
++            hasDefault: false;
++            isPrimaryKey: false;
++            isAutoincrement: false;
++            hasRuntimeDefault: false;
++            enumValues: [string, ...string[]];
++            baseColumn: never;
++            identity: undefined;
++            generated: undefined;
++        }, {}, {}>;
++        status: import("../pg-core/index.js").PgColumn<{
++            name: "status";
++            tableName: "invitation";
++            dataType: "string";
++            columnType: "PgText";
++            data: string;
++            driverParam: string;
++            notNull: true;
++            hasDefault: false;
++            isPrimaryKey: false;
++            isAutoincrement: false;
++            hasRuntimeDefault: false;
++            enumValues: [string, ...string[]];
++            baseColumn: never;
++            identity: undefined;
++            generated: undefined;
++        }, {}, {}>;
++        expiresAt: import("../pg-core/index.js").PgColumn<{
++            name: "expiresAt";
++            tableName: "invitation";
++            dataType: "string";
++            columnType: "PgTimestampString";
++            data: string;
++            driverParam: string;
++            notNull: true;
++            hasDefault: false;
++            isPrimaryKey: false;
++            isAutoincrement: false;
++            hasRuntimeDefault: false;
++            enumValues: undefined;
++            baseColumn: never;
++            identity: undefined;
++            generated: undefined;
++        }, {}, {}>;
++        createdAt: import("../pg-core/index.js").PgColumn<{
++            name: "createdAt";
++            tableName: "invitation";
++            dataType: "string";
++            columnType: "PgTimestampString";
++            data: string;
++            driverParam: string;
++            notNull: true;
++            hasDefault: true;
++            isPrimaryKey: false;
++            isAutoincrement: false;
++            hasRuntimeDefault: false;
++            enumValues: undefined;
++            baseColumn: never;
++            identity: undefined;
++            generated: undefined;
++        }, {}, {}>;
++        inviterId: import("../pg-core/index.js").PgColumn<{
++            name: "inviterId";
++            tableName: "invitation";
++            dataType: "string";
++            columnType: "PgUUID";
++            data: string;
++            driverParam: string;
++            notNull: true;
++            hasDefault: false;
++            isPrimaryKey: false;
++            isAutoincrement: false;
++            hasRuntimeDefault: false;
++            enumValues: undefined;
++            baseColumn: never;
++            identity: undefined;
++            generated: undefined;
++        }, {}, {}>;
++    };
++    dialect: "pg";
++}>;
++/**
++ * Table schema of the `account` table used by Neon Auth.
++ *
++ * @schema neon_auth
++ * @table account
++ */
++export declare const account: import("../pg-core/index.js").PgTableWithColumns<{
++    name: "account";
++    schema: "neon_auth";
++    columns: {
++        id: import("../pg-core/index.js").PgColumn<{
++            name: "id";
++            tableName: "account";
++            dataType: "string";
++            columnType: "PgUUID";
++            data: string;
++            driverParam: string;
++            notNull: true;
++            hasDefault: true;
++            isPrimaryKey: true;
++            isAutoincrement: false;
++            hasRuntimeDefault: false;
++            enumValues: undefined;
++            baseColumn: never;
++            identity: undefined;
++            generated: undefined;
++        }, {}, {}>;
++        accountId: import("../pg-core/index.js").PgColumn<{
++            name: "accountId";
++            tableName: "account";
++            dataType: "string";
++            columnType: "PgText";
++            data: string;
++            driverParam: string;
++            notNull: true;
++            hasDefault: false;
++            isPrimaryKey: false;
++            isAutoincrement: false;
++            hasRuntimeDefault: false;
++            enumValues: [string, ...string[]];
++            baseColumn: never;
++            identity: undefined;
++            generated: undefined;
++        }, {}, {}>;
++        providerId: import("../pg-core/index.js").PgColumn<{
++            name: "providerId";
++            tableName: "account";
++            dataType: "string";
++            columnType: "PgText";
++            data: string;
++            driverParam: string;
++            notNull: true;
++            hasDefault: false;
++            isPrimaryKey: false;
++            isAutoincrement: false;
++            hasRuntimeDefault: false;
++            enumValues: [string, ...string[]];
++            baseColumn: never;
++            identity: undefined;
++            generated: undefined;
++        }, {}, {}>;
++        userId: import("../pg-core/index.js").PgColumn<{
++            name: "userId";
++            tableName: "account";
++            dataType: "string";
++            columnType: "PgUUID";
++            data: string;
++            driverParam: string;
++            notNull: true;
++            hasDefault: false;
++            isPrimaryKey: false;
++            isAutoincrement: false;
++            hasRuntimeDefault: false;
++            enumValues: undefined;
++            baseColumn: never;
++            identity: undefined;
++            generated: undefined;
++        }, {}, {}>;
++        accessToken: import("../pg-core/index.js").PgColumn<{
++            name: "accessToken";
++            tableName: "account";
++            dataType: "string";
++            columnType: "PgText";
++            data: string;
++            driverParam: string;
++            notNull: false;
++            hasDefault: false;
++            isPrimaryKey: false;
++            isAutoincrement: false;
++            hasRuntimeDefault: false;
++            enumValues: [string, ...string[]];
++            baseColumn: never;
++            identity: undefined;
++            generated: undefined;
++        }, {}, {}>;
++        refreshToken: import("../pg-core/index.js").PgColumn<{
++            name: "refreshToken";
++            tableName: "account";
++            dataType: "string";
++            columnType: "PgText";
++            data: string;
++            driverParam: string;
++            notNull: false;
++            hasDefault: false;
++            isPrimaryKey: false;
++            isAutoincrement: false;
++            hasRuntimeDefault: false;
++            enumValues: [string, ...string[]];
++            baseColumn: never;
++            identity: undefined;
++            generated: undefined;
++        }, {}, {}>;
++        idToken: import("../pg-core/index.js").PgColumn<{
++            name: "idToken";
++            tableName: "account";
++            dataType: "string";
++            columnType: "PgText";
++            data: string;
++            driverParam: string;
++            notNull: false;
++            hasDefault: false;
++            isPrimaryKey: false;
++            isAutoincrement: false;
++            hasRuntimeDefault: false;
++            enumValues: [string, ...string[]];
++            baseColumn: never;
++            identity: undefined;
++            generated: undefined;
++        }, {}, {}>;
++        accessTokenExpiresAt: import("../pg-core/index.js").PgColumn<{
++            name: "accessTokenExpiresAt";
++            tableName: "account";
++            dataType: "string";
++            columnType: "PgTimestampString";
++            data: string;
++            driverParam: string;
++            notNull: false;
++            hasDefault: false;
++            isPrimaryKey: false;
++            isAutoincrement: false;
++            hasRuntimeDefault: false;
++            enumValues: undefined;
++            baseColumn: never;
++            identity: undefined;
++            generated: undefined;
++        }, {}, {}>;
++        refreshTokenExpiresAt: import("../pg-core/index.js").PgColumn<{
++            name: "refreshTokenExpiresAt";
++            tableName: "account";
++            dataType: "string";
++            columnType: "PgTimestampString";
++            data: string;
++            driverParam: string;
++            notNull: false;
++            hasDefault: false;
++            isPrimaryKey: false;
++            isAutoincrement: false;
++            hasRuntimeDefault: false;
++            enumValues: undefined;
++            baseColumn: never;
++            identity: undefined;
++            generated: undefined;
++        }, {}, {}>;
++        scope: import("../pg-core/index.js").PgColumn<{
++            name: "scope";
++            tableName: "account";
++            dataType: "string";
++            columnType: "PgText";
++            data: string;
++            driverParam: string;
++            notNull: false;
++            hasDefault: false;
++            isPrimaryKey: false;
++            isAutoincrement: false;
++            hasRuntimeDefault: false;
++            enumValues: [string, ...string[]];
++            baseColumn: never;
++            identity: undefined;
++            generated: undefined;
++        }, {}, {}>;
++        password: import("../pg-core/index.js").PgColumn<{
++            name: "password";
++            tableName: "account";
++            dataType: "string";
++            columnType: "PgText";
++            data: string;
++            driverParam: string;
++            notNull: false;
++            hasDefault: false;
++            isPrimaryKey: false;
++            isAutoincrement: false;
++            hasRuntimeDefault: false;
++            enumValues: [string, ...string[]];
++            baseColumn: never;
++            identity: undefined;
++            generated: undefined;
++        }, {}, {}>;
++        createdAt: import("../pg-core/index.js").PgColumn<{
++            name: "createdAt";
++            tableName: "account";
++            dataType: "string";
++            columnType: "PgTimestampString";
++            data: string;
++            driverParam: string;
++            notNull: true;
++            hasDefault: true;
++            isPrimaryKey: false;
++            isAutoincrement: false;
++            hasRuntimeDefault: false;
++            enumValues: undefined;
++            baseColumn: never;
++            identity: undefined;
++            generated: undefined;
++        }, {}, {}>;
++        updatedAt: import("../pg-core/index.js").PgColumn<{
++            name: "updatedAt";
++            tableName: "account";
++            dataType: "string";
++            columnType: "PgTimestampString";
++            data: string;
++            driverParam: string;
++            notNull: true;
++            hasDefault: false;
++            isPrimaryKey: false;
++            isAutoincrement: false;
++            hasRuntimeDefault: false;
++            enumValues: undefined;
++            baseColumn: never;
++            identity: undefined;
++            generated: undefined;
++        }, {}, {}>;
++    };
++    dialect: "pg";
++}>;
+diff --git a/node_modules/drizzle-orm/neon/neon-auth.js b/node_modules/drizzle-orm/neon/neon-auth.js
+index 7a782b1..39b514a 100644
+--- a/node_modules/drizzle-orm/neon/neon-auth.js
++++ b/node_modules/drizzle-orm/neon/neon-auth.js
+@@ -1,4 +1,5 @@
+-import { jsonb, pgSchema, text, timestamp } from "../pg-core/index.js";
++import { boolean, index, jsonb, pgSchema, text, timestamp, uuid } from "../pg-core/index.js";
++import { sql } from "../sql/index.js";
+ const neonAuthSchema = pgSchema("neon_auth");
+ const usersSync = neonAuthSchema.table("users_sync", {
+   rawJson: jsonb("raw_json").notNull(),
+@@ -9,7 +10,116 @@ const usersSync = neonAuthSchema.table("users_sync", {
+   deletedAt: timestamp("deleted_at", { withTimezone: true, mode: "string" }),
+   updatedAt: timestamp("updated_at", { withTimezone: true, mode: "string" })
+ });
++const users = neonAuthSchema.table("user", {
++  id: uuid().primaryKey().default(sql`gen_random_uuid()`),
++  name: text().notNull(),
++  email: text().unique().notNull(),
++  emailVerified: boolean("emailVerified").notNull(),
++  image: text(),
++  createdAt: timestamp("createdAt", { withTimezone: true, mode: "string" }).notNull().defaultNow(),
++  updatedAt: timestamp("updatedAt", { withTimezone: true, mode: "string" }).notNull().defaultNow(),
++  role: text(),
++  banned: boolean(),
++  banReason: text(),
++  banExpires: timestamp("banExpires", { withTimezone: true, mode: "string" })
++});
++const verification = neonAuthSchema.table("verification", {
++  id: uuid().primaryKey().default(sql`gen_random_uuid()`),
++  identifier: text().notNull(),
++  value: text().notNull(),
++  expiresAt: timestamp("expiresAt", { withTimezone: true, mode: "string" }).notNull(),
++  createdAt: timestamp("createdAt", { withTimezone: true, mode: "string" }).notNull().defaultNow(),
++  updatedAt: timestamp("updatedAt", { withTimezone: true, mode: "string" }).notNull().defaultNow()
++}, (table) => [index("verification_identifier_idx").on(table.identifier)]);
++const session = neonAuthSchema.table("session", {
++  id: uuid().primaryKey().default(sql`gen_random_uuid()`),
++  expiresAt: timestamp("expiresAt", { withTimezone: true, mode: "string" }).notNull(),
++  token: text().notNull().unique(),
++  createdAt: timestamp("createdAt", { withTimezone: true, mode: "string" }).notNull().defaultNow(),
++  updatedAt: timestamp("updatedAt", { withTimezone: true, mode: "string" }).notNull(),
++  ipAddress: text(),
++  userAgent: text(),
++  userId: uuid().notNull().references(() => users.id, { onDelete: "cascade" }),
++  impersonatedBy: text(),
++  activeOrganizationId: text()
++}, (table) => [index("session_userId_idx").on(table.userId)]);
++const projectConfig = neonAuthSchema.table("project_config", {
++  id: uuid().primaryKey().default(sql`gen_random_uuid()`),
++  name: text().notNull(),
++  endpointId: text("endpoint_id").notNull().unique(),
++  createdAt: timestamp("created_at", { withTimezone: true, mode: "string" }).notNull().defaultNow(),
++  updatedAt: timestamp("updated_at", { withTimezone: true, mode: "string" }).notNull().defaultNow(),
++  trustedOrigins: jsonb("trusted_origins").notNull(),
++  socialProviders: jsonb("social_providers").notNull(),
++  emailProvider: jsonb("email_provider"),
++  emailAndPassword: jsonb("email_and_password"),
++  allowLocalhost: boolean("allow_localhost").notNull(),
++  pluginConfigs: jsonb("plugin_configs"),
++  webhookConfig: jsonb("webhook_config")
++});
++const organization = neonAuthSchema.table("organization", {
++  id: uuid().primaryKey().default(sql`gen_random_uuid()`),
++  name: text().notNull(),
++  slug: text().notNull().unique(),
++  logo: text(),
++  createdAt: timestamp("createdAt", { withTimezone: true, mode: "string" }).notNull(),
++  metadata: text()
++});
++const member = neonAuthSchema.table("member", {
++  id: uuid().primaryKey().default(sql`gen_random_uuid()`),
++  organizationId: uuid().notNull().references(() => organization.id, { onDelete: "cascade" }),
++  userId: uuid().notNull().references(() => users.id, { onDelete: "cascade" }),
++  role: text().notNull(),
++  createdAt: timestamp("createdAt", { withTimezone: true, mode: "string" }).notNull()
++}, (table) => [
++  index("member_organizationId_idx").on(table.organizationId),
++  index("member_userId_idx").on(table.userId)
++]);
++const jwks = neonAuthSchema.table("jwks", {
++  id: uuid().primaryKey().default(sql`gen_random_uuid()`),
++  publicKey: text().notNull(),
++  privateKey: text().notNull(),
++  createdAt: timestamp("createdAt", { withTimezone: true, mode: "string" }).notNull(),
++  expiresAt: timestamp("expiresAt", { withTimezone: true, mode: "string" })
++});
++const invitation = neonAuthSchema.table("invitation", {
++  id: uuid().primaryKey().default(sql`gen_random_uuid()`),
++  organizationId: uuid().notNull().references(() => organization.id, { onDelete: "cascade" }),
++  email: text().notNull(),
++  role: text(),
++  status: text().notNull(),
++  expiresAt: timestamp("expiresAt", { withTimezone: true, mode: "string" }).notNull(),
++  createdAt: timestamp("createdAt", { withTimezone: true, mode: "string" }).notNull().defaultNow(),
++  inviterId: uuid().notNull().references(() => users.id, { onDelete: "cascade" })
++}, (table) => [
++  index("invitation_email_idx").on(table.email),
++  index("invitation_organizationId_idx").on(table.organizationId)
++]);
++const account = neonAuthSchema.table("account", {
++  id: uuid().primaryKey().default(sql`gen_random_uuid()`),
++  accountId: text().notNull(),
++  providerId: text().notNull(),
++  userId: uuid().notNull().references(() => users.id, { onDelete: "cascade" }),
++  accessToken: text(),
++  refreshToken: text(),
++  idToken: text(),
++  accessTokenExpiresAt: timestamp("accessTokenExpiresAt", { withTimezone: true, mode: "string" }),
++  refreshTokenExpiresAt: timestamp("refreshTokenExpiresAt", { withTimezone: true, mode: "string" }),
++  scope: text(),
++  password: text(),
++  createdAt: timestamp("createdAt", { withTimezone: true, mode: "string" }).notNull().defaultNow(),
++  updatedAt: timestamp("updatedAt", { withTimezone: true, mode: "string" }).notNull()
++}, (table) => [index("account_userId_idx").on(table.userId)]);
+ export {
+-  usersSync
++  account,
++  invitation,
++  jwks,
++  member,
++  organization,
++  projectConfig,
++  session,
++  users,
++  usersSync,
++  verification
+ };
+ //# sourceMappingURL=neon-auth.js.map
+diff --git a/node_modules/drizzle-orm/neon/neon-auth.js.map b/node_modules/drizzle-orm/neon/neon-auth.js.map
+index f11eef5..13cc9c2 100644
+--- a/node_modules/drizzle-orm/neon/neon-auth.js.map
++++ b/node_modules/drizzle-orm/neon/neon-auth.js.map
+@@ -1 +1 @@
+-{"version":3,"sources":["../../src/neon/neon-auth.ts"],"sourcesContent":["import { jsonb, pgSchema, text, timestamp } from '~/pg-core/index.ts';\n\nconst neonAuthSchema = pgSchema('neon_auth');\n\n/**\n * Table schema of the `users_sync` table used by Neon Auth.\n * This table automatically synchronizes and stores user data from external authentication providers.\n *\n * @schema neon_auth\n * @table users_sync\n */\nexport const usersSync = neonAuthSchema.table('users_sync', {\n\trawJson: jsonb('raw_json').notNull(),\n\tid: text().primaryKey().notNull(),\n\tname: text(),\n\temail: text(),\n\tcreatedAt: timestamp('created_at', { withTimezone: true, mode: 'string' }),\n\tdeletedAt: timestamp('deleted_at', { withTimezone: true, mode: 'string' }),\n\tupdatedAt: timestamp('updated_at', { withTimezone: true, mode: 'string' }),\n});\n"],"mappings":"AAAA,SAAS,OAAO,UAAU,MAAM,iBAAiB;AAEjD,MAAM,iBAAiB,SAAS,WAAW;AASpC,MAAM,YAAY,eAAe,MAAM,cAAc;AAAA,EAC3D,SAAS,MAAM,UAAU,EAAE,QAAQ;AAAA,EACnC,IAAI,KAAK,EAAE,WAAW,EAAE,QAAQ;AAAA,EAChC,MAAM,KAAK;AAAA,EACX,OAAO,KAAK;AAAA,EACZ,WAAW,UAAU,cAAc,EAAE,cAAc,MAAM,MAAM,SAAS,CAAC;AAAA,EACzE,WAAW,UAAU,cAAc,EAAE,cAAc,MAAM,MAAM,SAAS,CAAC;AAAA,EACzE,WAAW,UAAU,cAAc,EAAE,cAAc,MAAM,MAAM,SAAS,CAAC;AAC1E,CAAC;","names":[]}
+\ No newline at end of file
++{"version":3,"sources":["../../src/neon/neon-auth.ts"],"sourcesContent":["import { boolean, index, jsonb, pgSchema, text, timestamp, uuid } from '~/pg-core/index.ts';\nimport { sql } from '~/sql';\n\nconst neonAuthSchema = pgSchema('neon_auth');\n\n/**\n * Table schema of the `users_sync` table used by Neon Auth. This is legacy, for new projects, use the\n * `neon_auth.user` table instead.  This table automatically synchronizes and stores user data from\n * external authentication providers.\n *\n * @schema neon_auth\n * @table users_sync\n */\nexport const usersSync = neonAuthSchema.table('users_sync', {\n\trawJson: jsonb('raw_json').notNull(),\n\tid: text().primaryKey().notNull(),\n\tname: text(),\n\temail: text(),\n\tcreatedAt: timestamp('created_at', { withTimezone: true, mode: 'string' }),\n\tdeletedAt: timestamp('deleted_at', { withTimezone: true, mode: 'string' }),\n\tupdatedAt: timestamp('updated_at', { withTimezone: true, mode: 'string' }),\n});\n\n/**\n * Table schema of the `user` table used by Neon Auth.\n *\n * @schema neon_auth\n * @table user\n */\nexport const users = neonAuthSchema.table('user', {\n\tid: uuid().primaryKey().default(sql`gen_random_uuid()`),\n\tname: text().notNull(),\n\temail: text().unique().notNull(),\n\temailVerified: boolean('emailVerified').notNull(),\n\timage: text(),\n\tcreatedAt: timestamp('createdAt', { withTimezone: true, mode: 'string' }).notNull().defaultNow(),\n\tupdatedAt: timestamp('updatedAt', { withTimezone: true, mode: 'string' }).notNull().defaultNow(),\n\trole: text(),\n\tbanned: boolean(),\n\tbanReason: text(),\n\tbanExpires: timestamp('banExpires', { withTimezone: true, mode: 'string' }),\n});\n\n/**\n * Table schema of the `verification` table used by Neon Auth.\n *\n * @schema neon_auth\n * @table verification\n */\nexport const verification = neonAuthSchema.table('verification', {\n\tid: uuid().primaryKey().default(sql`gen_random_uuid()`),\n\tidentifier: text().notNull(),\n\tvalue: text().notNull(),\n\texpiresAt: timestamp('expiresAt', { withTimezone: true, mode: 'string' }).notNull(),\n\tcreatedAt: timestamp('createdAt', { withTimezone: true, mode: 'string' }).notNull().defaultNow(),\n\tupdatedAt: timestamp('updatedAt', { withTimezone: true, mode: 'string' }).notNull().defaultNow(),\n}, (table) => [index('verification_identifier_idx').on(table.identifier)]);\n\n/**\n * Table schema of the `session` table used by Neon Auth.\n *\n * @schema neon_auth\n * @table session\n */\nexport const session = neonAuthSchema.table('session', {\n\tid: uuid().primaryKey().default(sql`gen_random_uuid()`),\n\texpiresAt: timestamp('expiresAt', { withTimezone: true, mode: 'string' }).notNull(),\n\ttoken: text().notNull().unique(),\n\tcreatedAt: timestamp('createdAt', { withTimezone: true, mode: 'string' }).notNull().defaultNow(),\n\tupdatedAt: timestamp('updatedAt', { withTimezone: true, mode: 'string' }).notNull(),\n\tipAddress: text(),\n\tuserAgent: text(),\n\tuserId: uuid().notNull().references(() => users.id, { onDelete: 'cascade' }),\n\timpersonatedBy: text(),\n\tactiveOrganizationId: text(),\n}, (table) => [index('session_userId_idx').on(table.userId)]);\n\n/**\n * Table schema of the `project_config` table used by Neon Auth.\n *\n * @schema neon_auth\n * @table project_config\n */\nexport const projectConfig = neonAuthSchema.table('project_config', {\n\tid: uuid().primaryKey().default(sql`gen_random_uuid()`),\n\tname: text().notNull(),\n\tendpointId: text('endpoint_id').notNull().unique(),\n\tcreatedAt: timestamp('created_at', { withTimezone: true, mode: 'string' }).notNull().defaultNow(),\n\tupdatedAt: timestamp('updated_at', { withTimezone: true, mode: 'string' }).notNull().defaultNow(),\n\ttrustedOrigins: jsonb('trusted_origins').notNull(),\n\tsocialProviders: jsonb('social_providers').notNull(),\n\temailProvider: jsonb('email_provider'),\n\temailAndPassword: jsonb('email_and_password'),\n\tallowLocalhost: boolean('allow_localhost').notNull(),\n\tpluginConfigs: jsonb('plugin_configs'),\n\twebhookConfig: jsonb('webhook_config'),\n});\n\n/**\n * Table schema of the `organization` table used by Neon Auth.\n *\n * @schema neon_auth\n * @table organization\n */\nexport const organization = neonAuthSchema.table('organization', {\n\tid: uuid().primaryKey().default(sql`gen_random_uuid()`),\n\tname: text().notNull(),\n\tslug: text().notNull().unique(),\n\tlogo: text(),\n\tcreatedAt: timestamp('createdAt', { withTimezone: true, mode: 'string' }).notNull(),\n\tmetadata: text(),\n});\n\n/**\n * Table schema of the `member` table used by Neon Auth.\n *\n * @schema neon_auth\n * @table member\n */\nexport const member = neonAuthSchema.table('member', {\n\tid: uuid().primaryKey().default(sql`gen_random_uuid()`),\n\torganizationId: uuid().notNull().references(() => organization.id, { onDelete: 'cascade' }),\n\tuserId: uuid().notNull().references(() => users.id, { onDelete: 'cascade' }),\n\trole: text().notNull(),\n\tcreatedAt: timestamp('createdAt', { withTimezone: true, mode: 'string' }).notNull(),\n}, (table) => [\n\tindex('member_organizationId_idx').on(table.organizationId),\n\tindex('member_userId_idx').on(table.userId),\n]);\n\n/**\n * Table schema of the `jwks` table used by Neon Auth.\n *\n * @schema neon_auth\n * @table jwks\n */\nexport const jwks = neonAuthSchema.table('jwks', {\n\tid: uuid().primaryKey().default(sql`gen_random_uuid()`),\n\tpublicKey: text().notNull(),\n\tprivateKey: text().notNull(),\n\tcreatedAt: timestamp('createdAt', { withTimezone: true, mode: 'string' }).notNull(),\n\texpiresAt: timestamp('expiresAt', { withTimezone: true, mode: 'string' }),\n});\n\n/**\n * Table schema of the `invitation` table used by Neon Auth.\n *\n * @schema neon_auth\n * @table invitation\n */\nexport const invitation = neonAuthSchema.table('invitation', {\n\tid: uuid().primaryKey().default(sql`gen_random_uuid()`),\n\torganizationId: uuid().notNull().references(() => organization.id, { onDelete: 'cascade' }),\n\temail: text().notNull(),\n\trole: text(),\n\tstatus: text().notNull(),\n\texpiresAt: timestamp('expiresAt', { withTimezone: true, mode: 'string' }).notNull(),\n\tcreatedAt: timestamp('createdAt', { withTimezone: true, mode: 'string' }).notNull().defaultNow(),\n\tinviterId: uuid().notNull().references(() => users.id, { onDelete: 'cascade' }),\n}, (table) => [\n\tindex('invitation_email_idx').on(table.email),\n\tindex('invitation_organizationId_idx').on(table.organizationId),\n]);\n\n/**\n * Table schema of the `account` table used by Neon Auth.\n *\n * @schema neon_auth\n * @table account\n */\nexport const account = neonAuthSchema.table('account', {\n\tid: uuid().primaryKey().default(sql`gen_random_uuid()`),\n\taccountId: text().notNull(),\n\tproviderId: text().notNull(),\n\tuserId: uuid().notNull().references(() => users.id, { onDelete: 'cascade' }),\n\taccessToken: text(),\n\trefreshToken: text(),\n\tidToken: text(),\n\taccessTokenExpiresAt: timestamp('accessTokenExpiresAt', { withTimezone: true, mode: 'string' }),\n\trefreshTokenExpiresAt: timestamp('refreshTokenExpiresAt', { withTimezone: true, mode: 'string' }),\n\tscope: text(),\n\tpassword: text(),\n\tcreatedAt: timestamp('createdAt', { withTimezone: true, mode: 'string' }).notNull().defaultNow(),\n\tupdatedAt: timestamp('updatedAt', { withTimezone: true, mode: 'string' }).notNull(),\n}, (table) => [index('account_userId_idx').on(table.userId)]);\n"],"mappings":"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","names":[]}
+\ No newline at end of file

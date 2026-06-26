@@ -1,0 +1,20 @@
+{
+    "workspaces": [
+        "app/packages/*",
+        "database"
+    ],
+    "scripts": {
+        "dev": "nodemon --watch .env --watch .env.local --watch .env.development --exec \"npm run --workspace=web dev\"",
+        "drizzle-kit": "npm run --workspace=database drizzle-kit --",
+        "web:build": "dotenv npm run -- --workspace=web build",
+        "web:start": "dotenv npm run -- --workspace=web start",
+        "postinstall": "patch-package"
+    },
+    "devDependencies": {
+        "@neondatabase/config": "^0.8.0",
+        "dotenv": "^17.4.2",
+        "dotenv-cli": "^11.0.0",
+        "nodemon": "^3.1.14",
+        "patch-package": "^8.0.1"
+    }
+}
