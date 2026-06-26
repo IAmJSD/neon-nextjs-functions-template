@@ -1,6 +1,6 @@
 # Neon Next.js Serverless Template
 
-A full-stack Next.js starter backed by Neon serverless Postgres. It includes a web app, shared API package, Drizzle schema and migrations, Neon Auth, tRPC, Hono REST routes with OpenAPI output, API tokens, public avatar uploads, and a protected MCP server.
+A full-stack Next.js starter backed by Neon serverless services. It includes a web app, shared API package, Drizzle schema and migrations, Neon Auth, tRPC, Hono REST routes with OpenAPI output, API tokens, public avatar uploads, and a protected MCP server.
 
 ## What is included
 
